@@ -1,0 +1,50 @@
+# ============================================================
+# 每天 8:00 (UTC+8) 自动跑数据导入流水线
+# 也支持手动触发：GitHub Actions → Run workflow
+# ============================================================
+name: Daily Data Import
+
+on:
+  schedule:
+    # 每天北京时间 8:00 (UTC 0:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      csv_dir:
+        description: 'CSV 数据目录路径（可选，留空则跳过 CSV 导入）'
+        required: false
+        default: ''
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install psycopg[binary]
+
+      - name: Run import (if CSV data exists)
+        if: github.event.inputs.csv_dir != ''
+        run: |
+          python scripts/import_csv.py \
+            --db-url "${{ secrets.DATABASE_URL }}" \
+            --contents "${{ github.event.inputs.csv_dir }}/contents.csv" \
+            --metrics "${{ github.event.inputs.csv_dir }}/metrics.csv" \
+            --labels "${{ github.event.inputs.csv_dir }}/labels.csv"
+
+      - name: Run data analysis
+        run: |
+          python scripts/analyze.py \
+            --db-url "${{ secrets.DATABASE_URL }}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Notify completion
+        run: |
+          echo "✅ 数据导入完成 @ $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📊 页面自动每 5 分钟刷新，无需手动操作"
