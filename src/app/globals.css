@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+ * 全局样式
+ * 规则：feature 级样式请用 Tailwind utility class，不要在此文件加选择器
+ * ============================================================ */
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}

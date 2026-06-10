@@ -1,0 +1,10 @@
+# Netlify 部署配置
+# Next.js 项目使用 @netlify/plugin-nextjs 自动检测
+
+[build]
+  command = "npx next build"
+  publish = ".next"
+
+[build.environment]
+  NEXT_PUBLIC_SUPABASE_URL = "{{ SUPABASE_URL }}"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "{{ SUPABASE_ANON_KEY }}"
