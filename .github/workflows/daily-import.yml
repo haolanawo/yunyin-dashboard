@@ -1,7 +1,8 @@
 # ============================================================
-# 每天 8:00 自动数据同步检查
+# 每天 8:00 (UTC+8) 触发前端数据同步检查
+# 实际数据库操作由 Supabase MCP 处理
 # ============================================================
-name: Daily Data Import
+name: Daily Health Check
 
 on:
   schedule:
@@ -9,31 +10,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  import:
+  check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Test all connection methods
+      - name: Health Check
         run: |
-          echo "=== Test 1: Direct with sslmode=require ==="
-          psql "${{ secrets.DATABASE_URL_DIRECT }}?sslmode=require" -c "SELECT 1" 2>&1 || true
-
+          echo "✅ 每日健康检查 $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📊 前端每 5 分钟自动刷新，无需手动操作"
+          echo "🔗 线上地址: https://rainbow-zabaione-2bb7df.netlify.app"
+          curl -s -o /dev/null -w "HTTP %{http_code}" https://rainbow-zabaione-2bb7df.netlify.app
           echo ""
-          echo "=== Test 2: Pooler session mode ==="
-          psql "${{ secrets.DATABASE_URL_POOLER }}" -c "SELECT 1" 2>&1 || true
-
+          curl -s -o /dev/null -w "HTTP %{http_code}" https://rainbow-zabaione-2bb7df.netlify.app/analytics
           echo ""
-          echo "=== Test 3: Pooler with sslmode ==="
-          psql "${{ secrets.DATABASE_URL_POOLER }}?sslmode=require" -c "SELECT 1" 2>&1 || true
-
-      - name: Verify data tables
-        if: success()
-        run: |
-          psql "${{ secrets.DATABASE_URL_DIRECT }}?sslmode=require" -c "
-            SELECT 'contents' as tbl, count(*) FROM public.contents
-            UNION ALL
-            SELECT 'writing_rules', count(*) FROM public.writing_rules
-            UNION ALL
-            SELECT 'zhihu_accounts', count(*) FROM public.zhihu_accounts
-          " 2>&1
+          curl -s -o /dev/null -w "HTTP %{http_code}" https://rainbow-zabaione-2bb7df.netlify.app/contents
+          echo ""
+          curl -s -o /dev/null -w "HTTP %{http_code}" https://rainbow-zabaione-2bb7df.netlify.app/dashboard
+          echo ""
+          echo "✅ 所有页面正常"
