@@ -13,6 +13,8 @@ import {
   LayoutDashboard,
   BarChart3,
   Settings,
+  FileText,
+  PenTool,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -27,6 +29,8 @@ interface NavItem {
 export const navItems: NavItem[] = [
   { key: 'dashboard', label: '数据总览', path: '/dashboard', icon: LayoutDashboard },
   { key: 'analytics', label: '统计分析', path: '/analytics', icon: BarChart3 },
+  { key: 'contents', label: '内容管理', path: '/contents', icon: FileText },
+  { key: 'writing-guide', label: '写作指导', path: '/writing-guide', icon: PenTool },
   { key: 'settings',  label: '系统设置', path: '/settings',  icon: Settings },
 ];
 
