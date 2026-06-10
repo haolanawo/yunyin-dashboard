@@ -9,6 +9,7 @@
 
 import type { Metadata } from 'next';
 import { Sidebar, Header } from '@/components/layout';
+import { Providers } from '@/components/Providers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -24,19 +25,21 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="flex h-screen overflow-hidden">
-        {/* 侧边栏 — 固定宽度 */}
-        <Sidebar />
+        <Providers>
+          {/* 侧边栏 — 固定宽度 */}
+          <Sidebar />
 
-        {/* 右侧内容区 */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* 顶栏 */}
-          <Header />
+          {/* 右侧内容区 */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* 顶栏 */}
+            <Header />
 
-          {/* 页面内容插槽 — 各子页面在此渲染 */}
-          <main className="flex-1 overflow-auto bg-gray-50">
-            {children}
-          </main>
-        </div>
+            {/* 页面内容插槽 — 各子页面在此渲染 */}
+            <main className="flex-1 overflow-auto bg-gray-50">
+              {children}
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   );
