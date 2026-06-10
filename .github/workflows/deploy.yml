@@ -1,6 +1,5 @@
 # ============================================================
-# 自动部署到 Netlify
-# 触发条件：推送到 main/master 分支
+# 自动部署到 Netlify — 推送 master 时触发
 # ============================================================
 name: Deploy to Netlify
 
@@ -20,10 +19,8 @@ jobs:
           node-version: 20
 
       - run: npm ci
-        working-directory: dashboard
 
       - run: npm run build
-        working-directory: dashboard
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
@@ -31,8 +28,8 @@ jobs:
       - name: Deploy to Netlify
         uses: nwtgck/actions-netlify@v3
         with:
-          publish-dir: dashboard/.next
-          production-branch: main
+          publish-dir: '.next'
+          production-branch: master
           github-token: ${{ secrets.GITHUB_TOKEN }}
           deploy-message: "Deploy from GitHub Actions"
         env:

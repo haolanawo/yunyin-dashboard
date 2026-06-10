@@ -1,19 +1,13 @@
 # ============================================================
 # 每天 8:00 (UTC+8) 自动跑数据导入流水线
-# 也支持手动触发：GitHub Actions → Run workflow
+# 也支持手动触发：Actions → Daily Data Import → Run workflow
 # ============================================================
 name: Daily Data Import
 
 on:
   schedule:
-    # 每天北京时间 8:00 (UTC 0:00)
     - cron: '0 0 * * *'
   workflow_dispatch:
-    inputs:
-      csv_dir:
-        description: 'CSV 数据目录路径（可选，留空则跳过 CSV 导入）'
-        required: false
-        default: ''
 
 jobs:
   import:
@@ -28,23 +22,25 @@ jobs:
       - name: Install dependencies
         run: pip install psycopg[binary]
 
-      - name: Run import (if CSV data exists)
-        if: github.event.inputs.csv_dir != ''
+      - name: Verify database connection
         run: |
-          python scripts/import_csv.py \
-            --db-url "${{ secrets.DATABASE_URL }}" \
-            --contents "${{ github.event.inputs.csv_dir }}/contents.csv" \
-            --metrics "${{ github.event.inputs.csv_dir }}/metrics.csv" \
-            --labels "${{ github.event.inputs.csv_dir }}/labels.csv"
-
-      - name: Run data analysis
-        run: |
-          python scripts/analyze.py \
-            --db-url "${{ secrets.DATABASE_URL }}"
+          python -c "
+          import psycopg, os
+          url = os.environ['DATABASE_URL']
+          print(f'Connecting to pooler...')
+          conn = psycopg.connect(url)
+          cur = conn.cursor()
+          cur.execute('SELECT count(*) FROM public.contents')
+          print(f'✓ Connected. contents table has {cur.fetchone()[0]} rows.')
+          cur.execute('SELECT count(*) FROM public.writing_rules')
+          print(f'✓ writing_rules table has {cur.fetchone()[0]} rows.')
+          conn.close()
+          print('✓ Connection test passed.')
+          "
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Notify completion
+      - name: Summary
         run: |
-          echo "✅ 数据导入完成 @ $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          echo "📊 页面自动每 5 分钟刷新，无需手动操作"
+          echo "✅ 每日数据检查完成 @ $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📊 前端每 5 分钟自动刷新，无需手动操作"
