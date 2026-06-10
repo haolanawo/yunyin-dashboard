@@ -1,6 +1,6 @@
 # ============================================================
-# 每天 8:00 (UTC+8) 自动跑数据导入流水线
-# 也支持手动触发：Actions → Daily Data Import → Run workflow
+# 每天 8:00 (UTC+8) 自动跑数据检查
+# 也支持手动触发
 # ============================================================
 name: Daily Data Import
 
@@ -25,22 +25,19 @@ jobs:
       - name: Verify database connection
         run: |
           python -c "
-          import psycopg, os
-          url = os.environ['DATABASE_URL']
-          print(f'Connecting to pooler...')
+          import psycopg, os, urllib.parse
+          url = os.environ['DATABASE_URL'].strip()
+          print('URL scheme:', url.split(':')[0] if ':' in url else 'INVALID')
           conn = psycopg.connect(url)
           cur = conn.cursor()
           cur.execute('SELECT count(*) FROM public.contents')
-          print(f'✓ Connected. contents table has {cur.fetchone()[0]} rows.')
+          print(f'✓ Connected. contents: {cur.fetchone()[0]} rows')
           cur.execute('SELECT count(*) FROM public.writing_rules')
-          print(f'✓ writing_rules table has {cur.fetchone()[0]} rows.')
+          print(f'✓ writing_rules: {cur.fetchone()[0]} rows')
           conn.close()
-          print('✓ Connection test passed.')
           "
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Summary
-        run: |
-          echo "✅ 每日数据检查完成 @ $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          echo "📊 前端每 5 分钟自动刷新，无需手动操作"
+        run: echo "✅ 每日数据检查完成 — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
