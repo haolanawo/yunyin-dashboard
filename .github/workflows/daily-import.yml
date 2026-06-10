@@ -1,6 +1,5 @@
 # ============================================================
-# 每天 8:00 (UTC+8) 自动跑数据检查
-# 也支持手动触发
+# 每天 8:00 自动数据同步检查
 # ============================================================
 name: Daily Data Import
 
@@ -15,29 +14,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: pip install psycopg[binary]
-
-      - name: Verify database connection
+      - name: Test all connection methods
         run: |
-          python -c "
-          import psycopg, os, urllib.parse
-          url = os.environ['DATABASE_URL'].strip()
-          print('URL scheme:', url.split(':')[0] if ':' in url else 'INVALID')
-          conn = psycopg.connect(url)
-          cur = conn.cursor()
-          cur.execute('SELECT count(*) FROM public.contents')
-          print(f'✓ Connected. contents: {cur.fetchone()[0]} rows')
-          cur.execute('SELECT count(*) FROM public.writing_rules')
-          print(f'✓ writing_rules: {cur.fetchone()[0]} rows')
-          conn.close()
-          "
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          echo "=== Test 1: Direct with sslmode=require ==="
+          psql "${{ secrets.DATABASE_URL_DIRECT }}?sslmode=require" -c "SELECT 1" 2>&1 || true
 
-      - name: Summary
-        run: echo "✅ 每日数据检查完成 — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "=== Test 2: Pooler session mode ==="
+          psql "${{ secrets.DATABASE_URL_POOLER }}" -c "SELECT 1" 2>&1 || true
+
+          echo ""
+          echo "=== Test 3: Pooler with sslmode ==="
+          psql "${{ secrets.DATABASE_URL_POOLER }}?sslmode=require" -c "SELECT 1" 2>&1 || true
+
+      - name: Verify data tables
+        if: success()
+        run: |
+          psql "${{ secrets.DATABASE_URL_DIRECT }}?sslmode=require" -c "
+            SELECT 'contents' as tbl, count(*) FROM public.contents
+            UNION ALL
+            SELECT 'writing_rules', count(*) FROM public.writing_rules
+            UNION ALL
+            SELECT 'zhihu_accounts', count(*) FROM public.zhihu_accounts
+          " 2>&1
