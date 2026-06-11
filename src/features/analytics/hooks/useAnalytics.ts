@@ -6,28 +6,52 @@ import { createClient } from '@/lib/supabase';
 const supabase = createClient();
 const STALE = 5 * 60 * 1000;
 
+export type PlatformKey = 'zhihu' | 'bilibili';
+
 export interface PlatformDist {
   platform: string;
   count: number;
+  likes: number;
+}
+
+function aggregateMaxVotes(rows: Array<{ content_id: string; votes: number | null }>) {
+  const maxMap = new Map<string, number>();
+  rows.forEach((row) => {
+    maxMap.set(row.content_id, Math.max(maxMap.get(row.content_id) ?? 0, Number(row.votes ?? 0)));
+  });
+  return maxMap;
 }
 
 export function usePlatformDistribution() {
   return useQuery({
-    queryKey: ['platform-distribution'],
+    queryKey: ['platform-distribution-v2'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: contents, error: cErr } = await supabase
         .from('contents')
-        .select('platform')
+        .select('content_id, platform, like_count')
         .range(0, 49999);
-      if (error) throw error;
+      if (cErr) throw cErr;
 
-      const counts: Record<string, number> = {};
-      (data ?? []).forEach((row) => {
-        const p = row.platform ?? 'unknown';
-        counts[p] = (counts[p] ?? 0) + 1;
+      const { data: metrics, error: mErr } = await supabase
+        .from('metrics_daily')
+        .select('content_id, votes')
+        .range(0, 49999);
+      if (mErr) throw mErr;
+
+      const zhihuVoteMap = aggregateMaxVotes(metrics ?? []);
+      const counts: Record<string, PlatformDist> = {};
+
+      (contents ?? []).forEach((row) => {
+        const platform = row.platform ?? 'unknown';
+        if (!counts[platform]) counts[platform] = { platform, count: 0, likes: 0 };
+        counts[platform].count += 1;
+        counts[platform].likes +=
+          platform === 'bilibili'
+            ? Number(row.like_count ?? 0)
+            : Number(zhihuVoteMap.get(row.content_id) ?? 0);
       });
 
-      return Object.entries(counts).map(([platform, count]): PlatformDist => ({ platform, count }));
+      return Object.values(counts);
     },
     staleTime: STALE,
   });
@@ -35,14 +59,35 @@ export function usePlatformDistribution() {
 
 export interface MetricTrend {
   date: string;
-  votes: number;
+  likes: number;
   comments: number;
 }
 
-export function useMetricsTrend() {
+export function useMetricsTrend(platform: PlatformKey) {
   return useQuery({
-    queryKey: ['metrics-trend'],
-    queryFn: async () => {
+    queryKey: ['metrics-trend-platform', platform],
+    queryFn: async (): Promise<MetricTrend[]> => {
+      if (platform === 'bilibili') {
+        const { data, error } = await supabase
+          .from('contents')
+          .select('publish_date, like_count, favorite_count, share_count')
+          .eq('platform', 'bilibili')
+          .not('publish_date', 'is', null)
+          .range(0, 49999);
+        if (error) throw error;
+
+        const byDate = new Map<string, MetricTrend>();
+        (data ?? []).forEach((row) => {
+          const date = row.publish_date;
+          if (!date) return;
+          const item = byDate.get(date) ?? { date, likes: 0, comments: 0 };
+          item.likes += Number(row.like_count ?? 0);
+          item.comments += Number(row.favorite_count ?? 0) + Number(row.share_count ?? 0);
+          byDate.set(date, item);
+        });
+        return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+      }
+
       const { data, error } = await supabase.rpc('get_metrics_trend');
       if (error) throw error;
 
@@ -52,7 +97,7 @@ export function useMetricsTrend() {
         total_comments: number | string | null;
       }>).map((row): MetricTrend => ({
         date: row.snapshot_date,
-        votes: Number(row.total_votes ?? 0),
+        likes: Number(row.total_votes ?? 0),
         comments: Number(row.total_comments ?? 0),
       }));
     },
@@ -81,12 +126,7 @@ export function useTopContents(limit: number = 10) {
         .limit(limit * 3);
       if (mErr) throw mErr;
 
-      const voteMap = new Map<string, number>();
-      (metrics ?? []).forEach((m) => {
-        const existing = voteMap.get(m.content_id) ?? 0;
-        if ((m.votes ?? 0) > existing) voteMap.set(m.content_id, m.votes ?? 0);
-      });
-
+      const voteMap = aggregateMaxVotes(metrics ?? []);
       const topIds = [...voteMap.entries()]
         .sort((a, b) => b[1] - a[1])
         .slice(0, limit)

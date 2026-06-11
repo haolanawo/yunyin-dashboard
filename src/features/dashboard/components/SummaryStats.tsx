@@ -1,103 +1,96 @@
-// ============================================================
-// SummaryStats — 核心指标卡片
-// 显示 4 个 KPI 数字卡片（账号数、内容数、总点赞、平均AI分）
-// 数据源：Supabase（通过 useDashboardData hooks）
-// ============================================================
-
 'use client';
 
-import { TrendingUp, Users, FileText, ThumbsUp } from 'lucide-react';
-import {
-  useAccountsCount,
-  useContentsCount,
-  useTotalVotes,
-  useMaxVotes,
-} from '@/features/dashboard/hooks/useDashboardData';
+import { BarChart3, FileText, Layers, ThumbsUp, Users } from 'lucide-react';
+import { useExecutiveOverview } from '@/features/dashboard/hooks/useDashboardData';
 
-/** 格式化数字 — 超过 1000 用 k 表示 */
 function formatNumber(n: number): string {
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return String(n);
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+  return n.toLocaleString('zh-CN');
 }
 
 interface StatCardProps {
   label: string;
   value: string;
-  isLoading: boolean;
-  isError: boolean;
+  note: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   color: string;
-  change?: string;
+  isLoading: boolean;
 }
 
-function StatCard({ label, value, isLoading, isError, icon: Icon, color, change }: StatCardProps) {
-  let displayValue = value;
-  if (isLoading) displayValue = '加载中...';
-  else if (isError) displayValue = '获取失败';
-
+function StatCard({ label, value, note, icon: Icon, color, isLoading }: StatCardProps) {
   return (
-    <div className="bg-white border border-gray-100 rounded-lg p-5 hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-white border border-gray-100 rounded-lg p-5 hover:shadow-sm transition-shadow">
+      <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-gray-500">{label}</span>
         <Icon size={20} className={color} />
       </div>
-      <div className={`text-2xl font-bold ${isError ? 'text-red-500' : 'text-gray-900'}`}>
-        {displayValue}
+      <div className="text-3xl font-semibold tracking-normal text-gray-950">
+        {isLoading ? '加载中' : value}
       </div>
-      {change && !isLoading && !isError && (
-        <div className="text-xs text-gray-400 mt-1">{change}</div>
-      )}
+      <div className="text-xs text-gray-500 mt-2">{note}</div>
     </div>
   );
 }
 
 export default function SummaryStats() {
-  const { data: accountsCount, isLoading: accountsLoading, isError: accountsError } = useAccountsCount();
-  const { data: contentsCount, isLoading: contentsLoading, isError: contentsError } = useContentsCount();
-  const { data: totalVotes, isLoading: votesLoading, isError: votesError } = useTotalVotes();
-  const { data: maxVotes, isLoading: maxLoading, isError: maxError } = useMaxVotes();
+  const { data, isLoading, isError, error } = useExecutiveOverview();
+
+  if (isError) {
+    return (
+      <div className="col-span-12 bg-red-50 border border-red-100 rounded-lg p-5 text-sm text-red-700">
+        经营总览加载失败：{error?.message}
+      </div>
+    );
+  }
 
   const stats = [
     {
-      label: '监控账号',
-      value: accountsCount !== undefined ? formatNumber(accountsCount) : '--',
-      isLoading: accountsLoading,
-      isError: accountsError,
+      label: '覆盖平台',
+      value: formatNumber(data?.platformCount ?? 0),
+      note: '知乎 + B站，后续可继续接入新平台',
+      icon: Layers,
+      color: 'text-indigo-600',
+    },
+    {
+      label: '受控账号',
+      value: formatNumber(data?.accountCount ?? 0),
+      note: `知乎 ${data?.zhihuAccounts ?? 0} 个，B站 ${data?.bilibiliAccounts ?? 0} 个`,
       icon: Users,
       color: 'text-blue-600',
     },
     {
-      label: '内容总数',
-      value: contentsCount !== undefined ? formatNumber(contentsCount) : '--',
-      isLoading: contentsLoading,
-      isError: contentsError,
+      label: '内容资产',
+      value: formatNumber(data?.contentCount ?? 0),
+      note: `知乎 ${data?.zhihuContents ?? 0} 篇，B站 ${data?.bilibiliContents ?? 0} 条`,
       icon: FileText,
-      color: 'text-green-600',
+      color: 'text-emerald-600',
     },
     {
-      label: '总点赞数',
-      value: totalVotes !== undefined ? formatNumber(totalVotes) : '--',
-      isLoading: votesLoading,
-      isError: votesError,
+      label: '累计点赞',
+      value: formatNumber(data?.totalLikes ?? 0),
+      note: `知乎 ${formatNumber(data?.zhihuLikes ?? 0)}，B站 ${formatNumber(data?.bilibiliLikes ?? 0)}`,
       icon: ThumbsUp,
-      color: 'text-yellow-600',
-    },
-    {
-      label: '最高单篇赞',
-      value: maxVotes !== undefined ? formatNumber(maxVotes) : '--',
-      isLoading: maxLoading,
-      isError: maxError,
-      icon: TrendingUp,
-      color: 'text-purple-600',
+      color: 'text-amber-600',
     },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-4">
-      {stats.map((stat) => (
-        <StatCard key={stat.label} {...stat} />
-      ))}
+    <div className="space-y-4">
+      <div className="bg-white border border-gray-100 rounded-lg p-5">
+        <div className="flex items-center gap-2 text-gray-900">
+          <BarChart3 size={20} className="text-brand-500" />
+          <h2 className="text-base font-semibold">跨平台内容运营总览</h2>
+        </div>
+        <p className="text-sm text-gray-500 mt-2">
+          面向经营复盘展示：我们控制了多少账号、沉淀了多少内容资产、跨平台获得了多少互动。
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {stats.map((stat) => (
+          <StatCard key={stat.label} {...stat} isLoading={isLoading} />
+        ))}
+      </div>
     </div>
   );
 }

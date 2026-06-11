@@ -1,39 +1,26 @@
-// ============================================================
-// RecentData — 最近数据记录
-// 数据源：Supabase（通过 useRecentContents hook）
-// ============================================================
-
 'use client';
 
-import { Clock, FileText, AlertCircle } from 'lucide-react';
+import { AlertCircle, Clock, FileText } from 'lucide-react';
 import { useRecentContents, type RecentContent } from '@/features/dashboard/hooks/useDashboardData';
 
-/** 平台名称映射 */
 const platformLabels: Record<string, string> = {
   zhihu: '知乎',
   bilibili: 'B站',
 };
 
-/** 平台颜色映射 */
 const platformColors: Record<string, string> = {
   zhihu: 'bg-blue-100 text-blue-700',
   bilibili: 'bg-pink-100 text-pink-700',
 };
 
-/** 日期格式化 */
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '--';
-  const d = new Date(dateStr);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return dateStr.slice(0, 10);
 }
 
-/** 截断标题 */
-function truncateTitle(title: string | null, maxLen = 20): string {
+function truncateTitle(title: string | null, maxLen = 32): string {
   if (!title) return '无标题';
-  return title.length > maxLen ? title.slice(0, maxLen) + '...' : title;
+  return title.length > maxLen ? `${title.slice(0, maxLen)}...` : title;
 }
 
 function LoadingSkeleton() {
@@ -71,7 +58,7 @@ function ContentItem({ item }: { item: RecentContent }) {
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-xs text-gray-400">{item.account_name}</span>
-          <span className="text-xs text-gray-300">·</span>
+          <span className="text-xs text-gray-300">/</span>
           <span className="text-xs text-gray-400">{formatDate(item.publish_date)}</span>
         </div>
       </div>
@@ -80,7 +67,7 @@ function ContentItem({ item }: { item: RecentContent }) {
 }
 
 export default function RecentData() {
-  const { data: items, isLoading, isError, error } = useRecentContents(5);
+  const { data: items, isLoading, isError, error } = useRecentContents(6);
 
   return (
     <div>
@@ -98,7 +85,6 @@ export default function RecentData() {
         <div className="flex flex-col items-center justify-center py-8 text-gray-400 gap-2">
           <Clock size={20} />
           <p className="text-sm">暂无数据</p>
-          <p className="text-xs">连接 Supabase 后自动填充</p>
         </div>
       )}
 

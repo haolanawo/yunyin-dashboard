@@ -26,7 +26,7 @@ export function useAllAccounts() {
       // 1. Zhihu accounts
       const { data: zhAccounts, error: zhErr } = await supabase
         .from('zhihu_accounts')
-        .select('account_id, account_name, avatar_url, user_avatar')
+        .select('account_id, account_name')
         .limit(500);
 
       if (zhErr) throw zhErr;
@@ -61,7 +61,7 @@ export function useAllAccounts() {
           accounts.push({
             id: a.account_id,
             nickname: a.account_name ?? 'Unknown',
-            avatar: a.avatar_url ?? a.user_avatar ?? null,
+            avatar: null,
             platform: 'zhihu',
             content_count: contentCounts.get(a.account_id) ?? 0,
             total_views: null,

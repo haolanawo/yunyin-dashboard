@@ -1,7 +1,3 @@
-// ============================================================
-// Settings Hooks
-// ============================================================
-
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
@@ -19,7 +15,7 @@ export interface ConnectionStatus {
 export function useSupabaseStatus() {
   return useQuery({
     queryKey: ['supabase-status'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ConnectionStatus> => {
       const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '未配置';
       const start = Date.now();
       try {
@@ -54,7 +50,7 @@ export function useTableCounts() {
   return useQuery({
     queryKey: ['table-counts'],
     queryFn: async () => {
-      const tables = ['zhihu_accounts', 'contents', 'metrics_daily', 'structural_labels', 'writing_rules'];
+      const tables = ['zhihu_accounts', 'bilibili_accounts', 'contents', 'metrics_daily', 'structural_labels', 'writing_rules'];
       const results: TableInfo[] = [];
       for (const table of tables) {
         const { count, error } = await supabase
