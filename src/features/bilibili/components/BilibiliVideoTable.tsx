@@ -33,12 +33,15 @@ function extractBvid(item: BilibiliVideo): string | null {
 
 function CoverImage({ src, title }: { src: string | null; title: string | null }) {
   const [failed, setFailed] = useState(false);
-  const normalizedSrc = src?.startsWith('http://') ? `https://${src.slice(7)}` : src;
-  const proxySrc = normalizedSrc
-    ? `/api/image-proxy?url=${encodeURIComponent(normalizedSrc)}`
-    : null;
+  const storageBase = process.env.NEXT_PUBLIC_SUPABASE_URL
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/bilibili-covers`
+    : '';
+  const jpgSrc = src ? `${storageBase}/${src}.jpg` : null;
+  const svgSrc = src ? `${storageBase}/${src}.svg` : null;
+  const [variant, setVariant] = useState<'jpg' | 'svg'>('jpg');
+  const activeSrc = variant === 'jpg' ? jpgSrc : svgSrc;
 
-  if (!proxySrc || failed) {
+  if (!activeSrc || failed) {
     return (
       <div className="w-[120px] h-[68px] rounded bg-gray-100 flex items-center justify-center shrink-0">
         <Play size={16} className="text-gray-300" />
@@ -48,10 +51,16 @@ function CoverImage({ src, title }: { src: string | null; title: string | null }
 
   return (
     <img
-      src={proxySrc}
+      src={activeSrc}
       alt={title ?? ''}
       className="w-[120px] h-[68px] rounded object-cover shrink-0 bg-gray-100"
-      onError={() => setFailed(true)}
+      onError={() => {
+        if (variant === 'jpg' && svgSrc) {
+          setVariant('svg');
+          return;
+        }
+        setFailed(true);
+      }}
       loading="lazy"
     />
   );
@@ -144,7 +153,7 @@ export default function BilibiliVideoTable({ videos, isLoading, isError, error }
               >
                 <td className="py-3 px-2">
                   <div className="relative">
-                    <CoverImage src={video.cover_url} title={video.title} />
+                    <CoverImage src={video.content_id} title={video.title} />
                   </div>
                 </td>
                 <td className="py-3 px-2 max-w-[320px]">

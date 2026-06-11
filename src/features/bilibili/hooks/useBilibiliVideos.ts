@@ -12,7 +12,6 @@ export interface BilibiliVideo {
   account_name: string | null;
   account_id: string | null;
   publish_date: string | null;
-  cover_url: string | null;
   content_url: string | null;
   play_count: number | null;
   like_count: number | null;
@@ -33,7 +32,7 @@ export function useBilibiliVideos(page: number = 0) {
       // Fetch contents WHERE platform='bilibili', paginated
       const { data: contents, error: cErr, count } = await supabase
         .from('contents')
-        .select('content_id, title, account_id, publish_date, cover_url, content_url, play_count, like_count, coin_count, favorite_count, share_count, danmaku_count', { count: 'exact' })
+        .select('content_id, title, account_id, publish_date, content_url, play_count, like_count, coin_count, favorite_count, share_count, danmaku_count', { count: 'exact' })
         .eq('platform', 'bilibili')
         .order('publish_date', { ascending: false, nullsFirst: false })
         .range(from, to);
@@ -60,7 +59,6 @@ export function useBilibiliVideos(page: number = 0) {
         account_id: c.account_id ?? null,
         account_name: c.account_id ? (accountMap.get(c.account_id) ?? 'Unknown') : 'Unknown',
         publish_date: c.publish_date ?? null,
-        cover_url: c.cover_url ?? null,
         content_url: c.content_url ?? null,
         play_count: c.play_count ?? null,
         like_count: c.like_count ?? null,
