@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase';
 
 const supabase = createClient();
 const STALE = 5 * 60 * 1000;
+const PAGE_SIZE = 1000;
 
 export type PlatformKey = 'zhihu' | 'bilibili';
 
@@ -12,6 +13,58 @@ export interface PlatformDist {
   platform: string;
   count: number;
   likes: number;
+}
+
+export interface MetricTrend {
+  date: string;
+  likes: number;
+  comments: number;
+}
+
+export interface BilibiliInteractionSummary {
+  likes: number;
+  favorites: number;
+  coins: number;
+  shares: number;
+  videos: number;
+}
+
+async function fetchAllContents() {
+  const rows: Array<{
+    content_id: string;
+    platform: string | null;
+    publish_date?: string | null;
+    like_count: number | null;
+    favorite_count?: number | null;
+    coin_count?: number | null;
+    share_count?: number | null;
+  }> = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('contents')
+      .select('content_id, platform, publish_date, like_count, favorite_count, coin_count, share_count')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchAllMetrics() {
+  const rows: Array<{ content_id: string; votes: number | null; comments: number | null; snapshot_date?: string | null }> = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('metrics_daily')
+      .select('content_id, votes, comments, snapshot_date')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return rows;
 }
 
 function aggregateMaxVotes(rows: Array<{ content_id: string; votes: number | null }>) {
@@ -24,24 +77,13 @@ function aggregateMaxVotes(rows: Array<{ content_id: string; votes: number | nul
 
 export function usePlatformDistribution() {
   return useQuery({
-    queryKey: ['platform-distribution-v2'],
+    queryKey: ['platform-distribution-paginated'],
     queryFn: async () => {
-      const { data: contents, error: cErr } = await supabase
-        .from('contents')
-        .select('content_id, platform, like_count')
-        .range(0, 49999);
-      if (cErr) throw cErr;
-
-      const { data: metrics, error: mErr } = await supabase
-        .from('metrics_daily')
-        .select('content_id, votes')
-        .range(0, 49999);
-      if (mErr) throw mErr;
-
-      const zhihuVoteMap = aggregateMaxVotes(metrics ?? []);
+      const [contents, metrics] = await Promise.all([fetchAllContents(), fetchAllMetrics()]);
+      const zhihuVoteMap = aggregateMaxVotes(metrics);
       const counts: Record<string, PlatformDist> = {};
 
-      (contents ?? []).forEach((row) => {
+      contents.forEach((row) => {
         const platform = row.platform ?? 'unknown';
         if (!counts[platform]) counts[platform] = { platform, count: 0, likes: 0 };
         counts[platform].count += 1;
@@ -57,36 +99,11 @@ export function usePlatformDistribution() {
   });
 }
 
-export interface MetricTrend {
-  date: string;
-  likes: number;
-  comments: number;
-}
-
 export function useMetricsTrend(platform: PlatformKey) {
   return useQuery({
     queryKey: ['metrics-trend-platform', platform],
     queryFn: async (): Promise<MetricTrend[]> => {
-      if (platform === 'bilibili') {
-        const { data, error } = await supabase
-          .from('contents')
-          .select('publish_date, like_count, favorite_count, share_count')
-          .eq('platform', 'bilibili')
-          .not('publish_date', 'is', null)
-          .range(0, 49999);
-        if (error) throw error;
-
-        const byDate = new Map<string, MetricTrend>();
-        (data ?? []).forEach((row) => {
-          const date = row.publish_date;
-          if (!date) return;
-          const item = byDate.get(date) ?? { date, likes: 0, comments: 0 };
-          item.likes += Number(row.like_count ?? 0);
-          item.comments += Number(row.favorite_count ?? 0) + Number(row.share_count ?? 0);
-          byDate.set(date, item);
-        });
-        return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-      }
+      if (platform === 'bilibili') return [];
 
       const { data, error } = await supabase.rpc('get_metrics_trend');
       if (error) throw error;
@@ -104,6 +121,26 @@ export function useMetricsTrend(platform: PlatformKey) {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useBilibiliInteractionSummary() {
+  return useQuery({
+    queryKey: ['bilibili-interaction-summary'],
+    queryFn: async (): Promise<BilibiliInteractionSummary> => {
+      const contents = (await fetchAllContents()).filter((row) => row.platform === 'bilibili');
+      return contents.reduce(
+        (acc, row) => ({
+          likes: acc.likes + Number(row.like_count ?? 0),
+          favorites: acc.favorites + Number(row.favorite_count ?? 0),
+          coins: acc.coins + Number(row.coin_count ?? 0),
+          shares: acc.shares + Number(row.share_count ?? 0),
+          videos: acc.videos + 1,
+        }),
+        { likes: 0, favorites: 0, coins: 0, shares: 0, videos: 0 },
+      );
+    },
+    staleTime: STALE,
   });
 }
 

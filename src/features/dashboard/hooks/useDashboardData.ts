@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase';
 
 const supabase = createClient();
 const STALE = 5 * 60 * 1000;
+const PAGE_SIZE = 1000;
 
 export interface RecentContent {
   content_id: string;
@@ -27,6 +28,34 @@ export interface ExecutiveOverview {
   bilibiliLikes: number;
 }
 
+async function fetchAllContents() {
+  const rows: Array<{ content_id: string; platform: string | null; like_count: number | null }> = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('contents')
+      .select('content_id, platform, like_count')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function fetchAllMetrics() {
+  const rows: Array<{ content_id: string; votes: number | null }> = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('metrics_daily')
+      .select('content_id, votes')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 function maxMetricByContent(rows: Array<{ content_id: string; votes: number | null }>) {
   const maxMap = new Map<string, number>();
   rows.forEach((row) => {
@@ -38,40 +67,38 @@ function maxMetricByContent(rows: Array<{ content_id: string; votes: number | nu
 
 export function useExecutiveOverview() {
   return useQuery({
-    queryKey: ['executive-overview'],
+    queryKey: ['executive-overview-paginated'],
     queryFn: async (): Promise<ExecutiveOverview> => {
-      const [{ count: zhihuAccounts, error: zhErr }, { count: bilibiliAccounts, error: biErr }] =
-        await Promise.all([
-          supabase.from('zhihu_accounts').select('*', { count: 'exact', head: true }),
-          supabase.from('bilibili_accounts').select('*', { count: 'exact', head: true }),
-        ]);
+      const [
+        { count: zhihuAccounts, error: zhErr },
+        { count: bilibiliAccounts, error: biErr },
+        { count: zhihuContentsExact, error: zcErr },
+        { count: bilibiliContentsExact, error: bcErr },
+      ] = await Promise.all([
+        supabase.from('zhihu_accounts').select('*', { count: 'exact', head: true }),
+        supabase.from('bilibili_accounts').select('*', { count: 'exact', head: true }),
+        supabase.from('contents').select('*', { count: 'exact', head: true }).eq('platform', 'zhihu'),
+        supabase.from('contents').select('*', { count: 'exact', head: true }).eq('platform', 'bilibili'),
+      ]);
 
       if (zhErr) throw zhErr;
       if (biErr) throw biErr;
+      if (zcErr) throw zcErr;
+      if (bcErr) throw bcErr;
 
-      const { data: contents, error: cErr } = await supabase
-        .from('contents')
-        .select('content_id, platform, like_count')
-        .range(0, 49999);
-      if (cErr) throw cErr;
+      const [contents, metrics] = await Promise.all([fetchAllContents(), fetchAllMetrics()]);
 
-      const { data: metrics, error: mErr } = await supabase
-        .from('metrics_daily')
-        .select('content_id, votes')
-        .range(0, 49999);
-      if (mErr) throw mErr;
-
-      const zhihuContents = (contents ?? []).filter((item) => item.platform === 'zhihu').length;
-      const bilibiliContents = (contents ?? []).filter((item) => item.platform === 'bilibili').length;
-      const bilibiliLikes = (contents ?? [])
+      const bilibiliLikes = contents
         .filter((item) => item.platform === 'bilibili')
         .reduce((sum, item) => sum + Number(item.like_count ?? 0), 0);
-      const zhihuLikes = maxMetricByContent(metrics ?? []);
+      const zhihuLikes = maxMetricByContent(metrics);
+      const zhihuContents = zhihuContentsExact ?? contents.filter((item) => item.platform === 'zhihu').length;
+      const bilibiliContents = bilibiliContentsExact ?? contents.filter((item) => item.platform === 'bilibili').length;
 
       return {
         platformCount: 2,
         accountCount: (zhihuAccounts ?? 0) + (bilibiliAccounts ?? 0),
-        contentCount: contents?.length ?? 0,
+        contentCount: zhihuContents + bilibiliContents,
         totalLikes: zhihuLikes + bilibiliLikes,
         zhihuAccounts: zhihuAccounts ?? 0,
         bilibiliAccounts: bilibiliAccounts ?? 0,
