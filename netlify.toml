@@ -1,9 +1,3 @@
-# Netlify 部署配置
-# CI (GitHub Actions) 负责构建，Netlify 仅托管产物
-# 构建命令保持为空，避免重复构建
-
 [build]
-  command = ""
+  command = "npm run build"
   publish = ".next"
-
-# 环境变量已通过 Netlify CLI (netlify env:set) 配置，此处不覆盖

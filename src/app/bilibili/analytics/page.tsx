@@ -1,16 +1,25 @@
-// ============================================================
-// 统计分析页 — 4 图表布局
+﻿// ============================================================
+// B站分析页 — UP主数据对比图表
 // ============================================================
 
 'use client';
 
 import { Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { BarChart3 } from 'lucide-react';
 
-const PlatformChart = dynamic(() => import('@/features/analytics/components/PlatformChart'));
-const TrendChart = dynamic(() => import('@/features/analytics/components/TrendChart'));
-const TopContentsTable = dynamic(() => import('@/features/analytics/components/TopContentsTable'));
-const AccountComparison = dynamic(() => import('@/features/analytics/components/AccountComparison'));
+const VideoCountChart = dynamic(
+  () => import('@/features/bilibili-analytics/components/VideoCountChart'),
+  { loading: () => <ChartSkeleton /> },
+);
+const ViewRankingChart = dynamic(
+  () => import('@/features/bilibili-analytics/components/ViewRankingChart'),
+  { loading: () => <ChartSkeleton /> },
+);
+const InteractionChart = dynamic(
+  () => import('@/features/bilibili-analytics/components/InteractionChart'),
+  { loading: () => <ChartSkeleton /> },
+);
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -35,29 +44,30 @@ function ChartSkeleton() {
   );
 }
 
-export default function AnalyticsPage() {
+export default function BilibiliAnalyticsPage() {
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">统计分析</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <BarChart3 size={20} className="text-pink-500" />
+        <h1 className="text-xl font-bold text-gray-900">B站分析</h1>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <Suspense fallback={<ChartSkeleton />}>
-          <ChartCard title="平台内容分布">
-            <PlatformChart />
+          <ChartCard title="UP主视频数对比">
+            <VideoCountChart />
           </ChartCard>
         </Suspense>
+
         <Suspense fallback={<ChartSkeleton />}>
-          <ChartCard title="互动趋势">
-            <TrendChart />
+          <ChartCard title="UP主总播放量排名">
+            <ViewRankingChart />
           </ChartCard>
         </Suspense>
+
         <Suspense fallback={<ChartSkeleton />}>
-          <ChartCard title="高分内容排行">
-            <TopContentsTable />
-          </ChartCard>
-        </Suspense>
-        <Suspense fallback={<ChartSkeleton />}>
-          <ChartCard title="账号内容对比">
-            <AccountComparison />
+          <ChartCard title="UP主总互动对比（点赞+收藏+评论+分享）">
+            <InteractionChart />
           </ChartCard>
         </Suspense>
       </div>

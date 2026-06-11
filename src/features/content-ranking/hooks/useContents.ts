@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase';
 
 const supabase = createClient();
+const LARGE_QUERY_LIMIT = 50000;
 
 export interface ContentItem {
   content_id: string;
@@ -17,6 +18,8 @@ export interface ContentItem {
   publish_date: string | null;
   content_type: string | null;
   ai_score: number | null;
+  content_url: string | null;
+  question_id: string | null;
 }
 
 export function useContentsList() {
@@ -31,9 +34,12 @@ export function useContentsList() {
           platform,
           publish_date,
           content_type,
-          account_id
+          account_id,
+          content_url,
+          question_id
         `)
-        .order('publish_date', { ascending: false, nullsFirst: false });
+        .order('publish_date', { ascending: false, nullsFirst: false })
+        .limit(LARGE_QUERY_LIMIT);
 
       if (error) throw error;
 
@@ -55,7 +61,8 @@ export function useContentsList() {
         const { data: labels } = await supabase
           .from('structural_labels')
           .select('content_id, ai_score')
-          .in('content_id', contentIds);
+          .in('content_id', contentIds)
+          .limit(LARGE_QUERY_LIMIT);
         (labels ?? []).forEach((l) => {
           if (l.ai_score !== null && l.ai_score !== undefined) {
             scoreMap.set(l.content_id, Number(l.ai_score));
@@ -71,8 +78,12 @@ export function useContentsList() {
         publish_date: c.publish_date,
         content_type: c.content_type,
         ai_score: scoreMap.get(c.content_id) ?? null,
+        content_url: c.content_url ?? null,
+        question_id: c.question_id ?? null,
       }));
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }

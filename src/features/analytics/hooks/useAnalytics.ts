@@ -1,15 +1,11 @@
-// ============================================================
-// Analytics 数据查询 Hooks
-// ============================================================
-
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase';
 
 const supabase = createClient();
+const STALE = 5 * 60 * 1000;
 
-/** 平台分布数据 */
 export interface PlatformDist {
   platform: string;
   count: number;
@@ -21,23 +17,22 @@ export function usePlatformDistribution() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contents')
-        .select('platform');
+        .select('platform')
+        .range(0, 49999);
       if (error) throw error;
+
       const counts: Record<string, number> = {};
       (data ?? []).forEach((row) => {
         const p = row.platform ?? 'unknown';
         counts[p] = (counts[p] ?? 0) + 1;
       });
-      return Object.entries(counts).map(([platform, count]): PlatformDist => ({
-        platform,
-        count,
-      }));
+
+      return Object.entries(counts).map(([platform, count]): PlatformDist => ({ platform, count }));
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE,
   });
 }
 
-/** 指标趋势数据 */
 export interface MetricTrend {
   date: string;
   votes: number;
@@ -48,116 +43,108 @@ export function useMetricsTrend() {
   return useQuery({
     queryKey: ['metrics-trend'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('metrics_daily')
-        .select('snapshot_date, votes, comments')
-        .order('snapshot_date', { ascending: true });
+      const { data, error } = await supabase.rpc('get_metrics_trend');
       if (error) throw error;
-      const grouped: Record<string, { votes: number; comments: number }> = {};
-      (data ?? []).forEach((row) => {
-        const d = row.snapshot_date;
-        if (!grouped[d]) grouped[d] = { votes: 0, comments: 0 };
-        grouped[d].votes += row.votes ?? 0;
-        grouped[d].comments += row.comments ?? 0;
-      });
-      return Object.entries(grouped).map(([date, vals]): MetricTrend => ({
-        date,
-        ...vals,
+
+      return ((data ?? []) as Array<{
+        snapshot_date: string;
+        total_votes: number | string | null;
+        total_comments: number | string | null;
+      }>).map((row): MetricTrend => ({
+        date: row.snapshot_date,
+        votes: Number(row.total_votes ?? 0),
+        comments: Number(row.total_comments ?? 0),
       }));
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
-/** Top 内容（按 AI 评分） */
 export interface TopContent {
   content_id: string;
   title: string | null;
   platform: string;
-  ai_score: number | null;
+  votes: number;
   publish_date: string | null;
 }
 
 export function useTopContents(limit: number = 10) {
   return useQuery({
-    queryKey: ['top-contents', limit],
+    queryKey: ['top-contents-by-votes', limit],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('structural_labels')
-        .select(`
-          content_id,
-          ai_score,
-          contents!inner (
-            title,
-            platform,
-            publish_date
-          )
-        `)
-        .order('ai_score', { ascending: false, nullsFirst: false })
-        .limit(limit);
-      if (error) throw error;
-      return (data ?? []).map((row): TopContent => {
-        const c = Array.isArray(row.contents) ? row.contents[0] : row.contents;
-        return {
-          content_id: row.content_id,
-          title: c?.title ?? null,
-          platform: c?.platform ?? 'zhihu',
-          ai_score: row.ai_score !== null ? Number(row.ai_score) : null,
-          publish_date: c?.publish_date ?? null,
-        };
+      const { data: metrics, error: mErr } = await supabase
+        .from('metrics_daily')
+        .select('content_id, votes')
+        .order('votes', { ascending: false })
+        .limit(limit * 3);
+      if (mErr) throw mErr;
+
+      const voteMap = new Map<string, number>();
+      (metrics ?? []).forEach((m) => {
+        const existing = voteMap.get(m.content_id) ?? 0;
+        if ((m.votes ?? 0) > existing) voteMap.set(m.content_id, m.votes ?? 0);
       });
+
+      const topIds = [...voteMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id]) => id);
+
+      if (topIds.length === 0) return [];
+
+      const { data: contents, error: cErr } = await supabase
+        .from('contents')
+        .select('content_id, title, platform, publish_date')
+        .in('content_id', topIds);
+      if (cErr) throw cErr;
+
+      const contentMap = new Map((contents ?? []).map((c) => [c.content_id, c]));
+
+      return topIds
+        .map((id): TopContent | null => {
+          const c = contentMap.get(id);
+          if (!c) return null;
+          return {
+            content_id: id,
+            title: c.title ?? null,
+            platform: c.platform ?? 'zhihu',
+            votes: voteMap.get(id) ?? 0,
+            publish_date: c.publish_date ?? null,
+          };
+        })
+        .filter(Boolean) as TopContent[];
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE,
   });
 }
 
-/** 账号对比数据 */
-export interface AccountComparison {
+export interface AccountComparisonItem {
   account_name: string;
   content_count: number;
-  avg_ai_score: number;
+  total_votes: number;
 }
 
 export function useAccountComparison() {
   return useQuery({
-    queryKey: ['account-comparison'],
+    queryKey: ['account-comparison-v2'],
     queryFn: async () => {
-      const { data: accounts, error: accError } = await supabase
-        .from('zhihu_accounts')
-        .select('account_id, account_name');
-      if (accError) throw accError;
+      const { data, error } = await supabase.rpc('get_account_comparison');
+      if (error) throw error;
 
-      const result: AccountComparison[] = [];
-      for (const acc of accounts ?? []) {
-        const { data: contents, error: contError } = await supabase
-          .from('contents')
-          .select('content_id')
-          .eq('account_id', acc.account_id);
-        if (contError) continue;
-
-        const contentIds = (contents ?? []).map((c) => c.content_id);
-        let avgScore = 0;
-        if (contentIds.length > 0) {
-          const { data: labels } = await supabase
-            .from('structural_labels')
-            .select('ai_score')
-            .in('content_id', contentIds);
-          const scores = (labels ?? [])
-            .map((l) => l.ai_score)
-            .filter((s): s is number => s !== null && s !== undefined)
-            .map(Number);
-          avgScore = scores.length > 0
-            ? scores.reduce((a, b) => a + b, 0) / scores.length
-            : 0;
-        }
-        result.push({
-          account_name: acc.account_name ?? '未知',
-          content_count: (contents ?? []).length,
-          avg_ai_score: Math.round(avgScore * 100) / 100,
-        });
-      }
-      return result;
+      return ((data ?? []) as Array<{
+        account_name: string | null;
+        content_count: number | string | null;
+        total_votes: number | string | null;
+      }>).map((row): AccountComparisonItem => ({
+        account_name: row.account_name ?? 'unknown',
+        content_count: Number(row.content_count ?? 0),
+        total_votes: Number(row.total_votes ?? 0),
+      }));
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }

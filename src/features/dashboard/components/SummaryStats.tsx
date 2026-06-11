@@ -11,7 +11,7 @@ import {
   useAccountsCount,
   useContentsCount,
   useTotalVotes,
-  useAvgAiScore,
+  useMaxVotes,
 } from '@/features/dashboard/hooks/useDashboardData';
 
 /** 格式化数字 — 超过 1000 用 k 表示 */
@@ -56,7 +56,7 @@ export default function SummaryStats() {
   const { data: accountsCount, isLoading: accountsLoading, isError: accountsError } = useAccountsCount();
   const { data: contentsCount, isLoading: contentsLoading, isError: contentsError } = useContentsCount();
   const { data: totalVotes, isLoading: votesLoading, isError: votesError } = useTotalVotes();
-  const { data: avgScore, isLoading: scoreLoading, isError: scoreError } = useAvgAiScore();
+  const { data: maxVotes, isLoading: maxLoading, isError: maxError } = useMaxVotes();
 
   const stats = [
     {
@@ -84,10 +84,10 @@ export default function SummaryStats() {
       color: 'text-yellow-600',
     },
     {
-      label: '平均 AI 分',
-      value: avgScore !== undefined ? String(avgScore) : '--',
-      isLoading: scoreLoading,
-      isError: scoreError,
+      label: '最高单篇赞',
+      value: maxVotes !== undefined ? formatNumber(maxVotes) : '--',
+      isLoading: maxLoading,
+      isError: maxError,
       icon: TrendingUp,
       color: 'text-purple-600',
     },

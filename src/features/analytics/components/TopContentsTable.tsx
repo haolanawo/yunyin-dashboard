@@ -1,10 +1,11 @@
 // ============================================================
-// TopContentsTable — 高分内容排行
+// 高分内容排行（按赞同数排序，可点击到详情）
 // ============================================================
 
 'use client';
 
-import { AlertCircle, Star } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, Star, ThumbsUp } from 'lucide-react';
 import { useTopContents } from '@/features/analytics/hooks/useAnalytics';
 
 const PLATFORM_LABELS: Record<string, string> = { zhihu: '知乎', bilibili: 'B站' };
@@ -17,21 +18,20 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-3 animate-pulse">
       {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="h-10 bg-gray-200 rounded" />
+        <div key={i} className="h-12 bg-gray-200 rounded" />
       ))}
     </div>
   );
 }
 
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-gray-400 text-xs">--</span>;
-  const color =
-    score >= 75 ? 'text-green-600' : score >= 50 ? 'text-yellow-600' : 'text-red-500';
-  return <span className={`text-xs font-semibold ${color}`}>{score.toFixed(1)}</span>;
+function formatVotes(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
 }
 
 export default function TopContentsTable() {
-  const { data, isLoading, isError, error } = useTopContents(8);
+  const { data, isLoading, isError, error } = useTopContents(10);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -54,27 +54,33 @@ export default function TopContentsTable() {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {data.map((item, i) => (
-        <div
+        <Link
           key={item.content_id}
-          className="flex items-center gap-3 py-2 px-2 rounded hover:bg-gray-50 transition-colors"
+          href={`/content/${item.content_id}`}
+          className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors group"
         >
-          <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
+          <div className="w-6 text-center shrink-0">
+            {i < 3 ? (
+              <Star size={14} className={i === 0 ? 'text-yellow-500 fill-yellow-500' : i === 1 ? 'text-gray-400 fill-gray-400' : 'text-orange-400 fill-orange-400'} />
+            ) : (
+              <span className="text-xs text-gray-400">{i + 1}</span>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
-            <span className="text-sm text-gray-700 truncate block" title={item.title ?? undefined}>
+            <span className="text-sm text-gray-700 group-hover:text-brand-600 truncate block transition-colors" title={item.title ?? undefined}>
               {item.title ?? '无标题'}
             </span>
           </div>
-          <span
-            className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${
-              PLATFORM_COLORS[item.platform] ?? 'bg-gray-100 text-gray-600'
-            }`}
-          >
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${PLATFORM_COLORS[item.platform] ?? 'bg-gray-100 text-gray-600'}`}>
             {PLATFORM_LABELS[item.platform] ?? item.platform}
           </span>
-          <ScoreBadge score={item.ai_score} />
-        </div>
+          <span className="flex items-center gap-1 text-xs font-semibold text-orange-600 shrink-0">
+            <ThumbsUp size={12} />
+            {formatVotes(item.votes)}
+          </span>
+        </Link>
       ))}
     </div>
   );

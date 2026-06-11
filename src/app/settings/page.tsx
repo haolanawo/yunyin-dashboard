@@ -4,7 +4,7 @@
 
 'use client';
 
-import { Database, CheckCircle, XCircle, Loader2, Server, Globe } from 'lucide-react';
+import { Database, CheckCircle, XCircle, Server, Globe } from 'lucide-react';
 import { useSupabaseStatus, useTableCounts } from '@/features/settings/hooks/useConnectionStatus';
 
 function StatusCard() {
@@ -18,9 +18,13 @@ function StatusCard() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-gray-400 py-4">
-          <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">检测中...</span>
+        <div className="space-y-3 py-2">
+          <div className="flex items-center gap-2">
+            <div className="skeleton-shimmer h-4 w-4 rounded-full" />
+            <div className="skeleton-shimmer h-4 w-16 rounded" />
+          </div>
+          <div className="skeleton-shimmer h-4 w-28 rounded" />
+          <div className="skeleton-shimmer h-4 w-44 rounded" />
         </div>
       ) : (
         <div className="space-y-3">
@@ -83,12 +87,19 @@ function TableInfoCard() {
         </thead>
         <tbody>
           {isLoading ? (
-            <tr>
-              <td colSpan={3} className="py-4 text-center text-gray-400">
-                <Loader2 size={16} className="animate-spin inline mr-1" />
-                加载中...
-              </td>
-            </tr>
+            [1, 2, 3, 4, 5].map((i) => (
+              <tr key={i} className="border-b border-gray-50">
+                <td className="py-2.5">
+                  <div className="skeleton-shimmer h-4 w-28 rounded" />
+                </td>
+                <td className="py-2.5 text-right">
+                  <div className="skeleton-shimmer h-4 w-10 ml-auto rounded" />
+                </td>
+                <td className="py-2.5 text-right">
+                  <div className="skeleton-shimmer h-4 w-14 ml-auto rounded" />
+                </td>
+              </tr>
+            ))
           ) : (
             (data ?? []).map((t) => (
               <tr key={t.name} className="border-b border-gray-50">
