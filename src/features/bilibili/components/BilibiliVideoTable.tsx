@@ -33,8 +33,9 @@ function extractBvid(item: BilibiliVideo): string | null {
 
 function CoverImage({ src, title }: { src: string | null; title: string | null }) {
   const [failed, setFailed] = useState(false);
+  const normalizedSrc = src?.startsWith('http://') ? `https://${src.slice(7)}` : src;
 
-  if (!src || failed) {
+  if (!normalizedSrc || failed) {
     return (
       <div className="w-[120px] h-[68px] rounded bg-gray-100 flex items-center justify-center shrink-0">
         <Play size={16} className="text-gray-300" />
@@ -44,7 +45,7 @@ function CoverImage({ src, title }: { src: string | null; title: string | null }
 
   return (
     <img
-      src={src}
+      src={normalizedSrc}
       alt={title ?? ''}
       className="w-[120px] h-[68px] rounded object-cover shrink-0 bg-gray-100"
       onError={() => setFailed(true)}
