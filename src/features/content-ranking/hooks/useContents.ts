@@ -1,14 +1,9 @@
-// ============================================================
-// Contents 列表查询 Hooks
-// ============================================================
-
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase';
 
 const supabase = createClient();
-const LARGE_QUERY_LIMIT = 50000;
 
 export interface ContentItem {
   content_id: string;
@@ -22,13 +17,36 @@ export interface ContentItem {
   question_id: string | null;
 }
 
-export function useContentsList() {
-  return useQuery({
-    queryKey: ['contents-list'],
+interface UseContentsListParams {
+  page: number;
+  pageSize: number;
+  search?: string;
+  platform?: string;
+  contentType?: string;
+}
+
+interface ContentsListResult {
+  items: ContentItem[];
+  total: number;
+}
+
+export function useContentsList({
+  page,
+  pageSize,
+  search = '',
+  platform = '',
+  contentType = '',
+}: UseContentsListParams) {
+  return useQuery<ContentsListResult, Error>({
+    queryKey: ['contents-list', page, pageSize, search, platform, contentType],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase
         .from('contents')
-        .select(`
+        .select(
+          `
           content_id,
           title,
           platform,
@@ -36,54 +54,71 @@ export function useContentsList() {
           content_type,
           account_id,
           content_url,
+          url,
           question_id
-        `)
+        `,
+          { count: 'exact' }
+        )
         .order('publish_date', { ascending: false, nullsFirst: false })
-        .limit(LARGE_QUERY_LIMIT);
+        .range(from, to);
 
+      if (platform) query = query.eq('platform', platform);
+      if (contentType) query = query.eq('content_type', contentType);
+      if (search.trim()) query = query.ilike('title', `%${search.trim()}%`);
+
+      const { data, error, count } = await query;
       if (error) throw error;
 
-      const accountIds = [...new Set((data ?? []).map((c) => c.account_id).filter(Boolean))];
+      const rows = data ?? [];
+      const accountIds = [...new Set(rows.map((c) => c.account_id).filter(Boolean))] as string[];
+      const contentIds = rows.map((c) => c.content_id);
       const accountMap = new Map<string, string>();
+      const scoreMap = new Map<string, number>();
+
       if (accountIds.length > 0) {
-        const { data: accounts } = await supabase
-          .from('zhihu_accounts')
-          .select('account_id, account_name')
-          .in('account_id', accountIds);
-        (accounts ?? []).forEach((a) => {
-          accountMap.set(a.account_id, a.account_name ?? '未知');
+        const [zhihuAccounts, bilibiliAccounts] = await Promise.all([
+          supabase.from('zhihu_accounts').select('account_id, account_name').in('account_id', accountIds),
+          supabase.from('bilibili_accounts').select('account_id, account_name').in('account_id', accountIds),
+        ]);
+
+        (zhihuAccounts.data ?? []).forEach((a) => {
+          accountMap.set(a.account_id, a.account_name ?? '未知账号');
+        });
+        (bilibiliAccounts.data ?? []).forEach((a) => {
+          accountMap.set(a.account_id, a.account_name ?? '未知账号');
         });
       }
 
-      const contentIds = (data ?? []).map((c) => c.content_id);
-      const scoreMap = new Map<string, number>();
       if (contentIds.length > 0) {
         const { data: labels } = await supabase
           .from('structural_labels')
           .select('content_id, ai_score')
-          .in('content_id', contentIds)
-          .limit(LARGE_QUERY_LIMIT);
-        (labels ?? []).forEach((l) => {
-          if (l.ai_score !== null && l.ai_score !== undefined) {
-            scoreMap.set(l.content_id, Number(l.ai_score));
+          .in('content_id', contentIds);
+
+        (labels ?? []).forEach((label) => {
+          if (label.ai_score !== null && label.ai_score !== undefined) {
+            scoreMap.set(label.content_id, Number(label.ai_score));
           }
         });
       }
 
-      return (data ?? []).map((c): ContentItem => ({
-        content_id: c.content_id,
-        title: c.title,
-        platform: c.platform ?? 'zhihu',
-        account_name: c.account_id ? (accountMap.get(c.account_id) ?? '未知') : '未知',
-        publish_date: c.publish_date,
-        content_type: c.content_type,
-        ai_score: scoreMap.get(c.content_id) ?? null,
-        content_url: c.content_url ?? null,
-        question_id: c.question_id ?? null,
-      }));
+      return {
+        total: count ?? 0,
+        items: rows.map((c): ContentItem => ({
+          content_id: c.content_id,
+          title: c.title,
+          platform: c.platform ?? 'zhihu',
+          account_name: c.account_id ? (accountMap.get(c.account_id) ?? '未知账号') : '未知账号',
+          publish_date: c.publish_date,
+          content_type: c.content_type,
+          ai_score: scoreMap.get(c.content_id) ?? null,
+          content_url: c.content_url ?? c.url ?? null,
+          question_id: c.question_id ?? null,
+        })),
+      };
     },
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: false,
   });
 }

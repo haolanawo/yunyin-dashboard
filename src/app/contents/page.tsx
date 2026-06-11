@@ -1,10 +1,6 @@
-// ============================================================
-// 内容管理页
-// ============================================================
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import ContentFilters from '@/features/content-ranking/components/ContentFilters';
 import ContentTable from '@/features/content-ranking/components/ContentTable';
 import { useContentsList } from '@/features/content-ranking/hooks/useContents';
@@ -12,67 +8,72 @@ import { useContentsList } from '@/features/content-ranking/hooks/useContents';
 const PAGE_SIZE = 20;
 
 export default function ContentsPage() {
-  const { data: allItems, isLoading, isError, error } = useContentsList();
   const [search, setSearch] = useState('');
   const [platform, setPlatform] = useState('');
   const [contentType, setContentType] = useState('');
   const [page, setPage] = useState(0);
 
-  const filtered = useMemo(() => {
-    let items = allItems ?? [];
-    if (search) {
-      const q = search.toLowerCase();
-      items = items.filter((c) => (c.title ?? '').toLowerCase().includes(q));
-    }
-    if (platform) {
-      items = items.filter((c) => c.platform === platform);
-    }
-    if (contentType) {
-      items = items.filter((c) => c.content_type === contentType);
-    }
-    return items;
-  }, [allItems, search, platform, contentType]);
+  const { data, isLoading, isFetching, isError, error } = useContentsList({
+    page,
+    pageSize: PAGE_SIZE,
+    search,
+    platform,
+    contentType,
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const total = data?.total ?? 0;
+  const items = data?.items ?? [];
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
+
+  const updateSearch = (value: string) => {
+    setSearch(value);
+    setPage(0);
+  };
+
+  const updatePlatform = (value: string) => {
+    setPlatform(value);
+    setPage(0);
+  };
+
+  const updateContentType = (value: string) => {
+    setContentType(value);
+    setPage(0);
+  };
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">内容管理</h1>
+      <h1 className="mb-6 text-xl font-bold text-gray-900">内容管理</h1>
 
-      {/* 筛选栏 */}
-      <div className="bg-white rounded-lg border border-gray-100 p-4 mb-4">
+      <div className="mb-4 rounded-lg border border-gray-100 bg-white p-4">
         <ContentFilters
           search={search}
-          onSearchChange={(v) => { setSearch(v); setPage(0); }}
+          onSearchChange={updateSearch}
           platform={platform}
-          onPlatformChange={(v) => { setPlatform(v); setPage(0); }}
+          onPlatformChange={updatePlatform}
           contentType={contentType}
-          onContentTypeChange={(v) => { setContentType(v); setPage(0); }}
+          onContentTypeChange={updateContentType}
         />
-        <div className="text-xs text-gray-400 mt-3">
-          共 {filtered.length} 条记录
+        <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+          <span>共 {total.toLocaleString()} 条记录</span>
+          {isFetching && !isLoading && <span>正在刷新当前页...</span>}
         </div>
       </div>
 
-      {/* 表格 */}
-      <div className="bg-white rounded-lg border border-gray-100 p-4">
+      <div className="rounded-lg border border-gray-100 bg-white p-4">
         <ContentTable
-          items={pageItems}
+          items={items}
           isLoading={isLoading}
           isError={isError}
           error={error}
         />
       </div>
 
-      {/* 分页 */}
-      {filtered.length > PAGE_SIZE && (
-        <div className="flex items-center justify-center gap-2 mt-4">
+      {total > PAGE_SIZE && (
+        <div className="mt-4 flex items-center justify-center gap-2">
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40
-              hover:bg-gray-50 transition-colors"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:opacity-40"
           >
             上一页
           </button>
@@ -82,8 +83,7 @@ export default function ContentsPage() {
           <button
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40
-              hover:bg-gray-50 transition-colors"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:opacity-40"
           >
             下一页
           </button>

@@ -1,7 +1,3 @@
-// ============================================================
-// ContentFilters — 搜索 + 平台/类型筛选
-// ============================================================
-
 'use client';
 
 import { Search } from 'lucide-react';
@@ -24,39 +20,32 @@ export default function ContentFilters({
   onContentTypeChange,
 }: ContentFiltersProps) {
   return (
-    <div className="flex items-center gap-3 flex-wrap">
-      {/* 搜索框 */}
+    <div className="flex flex-wrap items-center gap-3">
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
           placeholder="搜索标题..."
           value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg w-56
-            focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500
-            placeholder:text-gray-400"
+          onChange={(event) => onSearchChange(event.target.value)}
+          className="w-56 rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
         />
       </div>
 
-      {/* 平台筛选 */}
       <select
         value={platform}
-        onChange={(e) => onPlatformChange(e.target.value)}
-        className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white
-          focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+        onChange={(event) => onPlatformChange(event.target.value)}
+        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20"
       >
         <option value="">全部平台</option>
         <option value="zhihu">知乎</option>
         <option value="bilibili">B站</option>
       </select>
 
-      {/* 类型筛选 */}
       <select
         value={contentType}
-        onChange={(e) => onContentTypeChange(e.target.value)}
-        className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white
-          focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+        onChange={(event) => onContentTypeChange(event.target.value)}
+        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20"
       >
         <option value="">全部类型</option>
         <option value="answer">回答</option>
