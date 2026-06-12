@@ -1,3 +1,5 @@
+import { detectPlatform, extractDayWindow } from '../utils';
+
 interface SqlTemplateDefinition {
   sql: string;
   summary: string;
@@ -5,12 +7,12 @@ interface SqlTemplateDefinition {
 
 export const sqlTemplates: Record<string, SqlTemplateDefinition> = {
   top_content_last_30_days: {
-    summary: 'Top-performing content from the last 30 days.',
+    summary: '最近 30 天高表现内容样本。',
     sql: `
 select
   platform,
   title,
-  account_name,
+  coalesce(account_name, 'unknown') as account_name,
   publish_date,
   views,
   likes,
@@ -24,12 +26,12 @@ limit 15;
 `.trim(),
   },
   top_content_last_7_days: {
-    summary: 'Top-performing content from the last 7 days.',
+    summary: '最近 7 天高表现内容样本。',
     sql: `
 select
   platform,
   title,
-  account_name,
+  coalesce(account_name, 'unknown') as account_name,
   publish_date,
   views,
   likes,
@@ -43,24 +45,24 @@ limit 15;
 `.trim(),
   },
   fastest_growing_accounts: {
-    summary: 'Accounts with the strongest follower growth in the last 30 days.',
+    summary: '最近 30 天涨粉最快的账号。',
     sql: `
 select
   platform,
-  account_name,
+  coalesce(account_name, 'unknown') as account_name,
   count(*) as content_count,
   sum(coalesce(new_followers, 0)) as total_new_followers,
   avg(coalesce(follow_rate, 0)) as avg_follow_rate,
   avg(coalesce(content_score, 0)) as avg_content_score
 from v_content_analysis
 where publish_date >= current_date - interval '30 day'
-group by platform, account_name
+group by platform, coalesce(account_name, 'unknown')
 order by total_new_followers desc nulls last, avg_follow_rate desc nulls last
 limit 12;
 `.trim(),
   },
   platform_comparison: {
-    summary: 'Cross-platform performance comparison between Bilibili and Zhihu.',
+    summary: 'B 站与知乎内容表现对比。',
     sql: `
 select
   platform,
@@ -75,7 +77,7 @@ order by avg_content_score desc nulls last;
 `.trim(),
   },
   topic_average_performance: {
-    summary: 'Average content performance grouped by topic type.',
+    summary: '按主题/标签聚合后的平均表现。',
     sql: `
 select
   topic_type,
@@ -91,12 +93,12 @@ order by avg_content_score desc nulls last, sample_count desc;
 `.trim(),
   },
   anomalous_growth_content: {
-    summary: 'Recently published content with unusually strong follower or score spikes.',
+    summary: '近期疑似异常增长内容。',
     sql: `
 select
   platform,
   title,
-  account_name,
+  coalesce(account_name, 'unknown') as account_name,
   publish_date,
   views,
   likes,
@@ -118,16 +120,14 @@ limit 15;
 
 export function pickSqlTemplate(question: string) {
   const normalized = question.toLowerCase();
+  const platform = detectPlatform(question);
+  const dayWindow = extractDayWindow(question);
 
-  if (normalized.includes('7')) {
-    return 'top_content_last_7_days';
-  }
-
-  if (normalized.includes('增长最快') || normalized.includes('涨粉')) {
+  if (normalized.includes('增长最快') || normalized.includes('涨粉最快')) {
     return 'fastest_growing_accounts';
   }
 
-  if (normalized.includes('差异') || (normalized.includes('b站') && normalized.includes('知乎'))) {
+  if (normalized.includes('差异') || normalized.includes('对比') || platform === 'cross_platform' && normalized.includes('平台')) {
     return 'platform_comparison';
   }
 
@@ -139,5 +139,5 @@ export function pickSqlTemplate(question: string) {
     return 'anomalous_growth_content';
   }
 
-  return 'top_content_last_30_days';
+  return dayWindow <= 7 ? 'top_content_last_7_days' : 'top_content_last_30_days';
 }

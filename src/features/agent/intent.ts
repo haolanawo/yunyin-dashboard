@@ -3,7 +3,7 @@ import type { AgentIntent } from './types';
 const intentRules: Array<{ intent: AgentIntent; keywords: string[] }> = [
   {
     intent: 'data_diagnosis',
-    keywords: ['异常', '缺失', '不对', '诊断', '爬虫', '报错', '缺数据', '指标异常'],
+    keywords: ['异常', '缺失', '不对', '诊断', '爬虫', '报错', '缺数据', '指标异常', '为什么没数据'],
   },
   {
     intent: 'competitor_research',
@@ -11,11 +11,11 @@ const intentRules: Array<{ intent: AgentIntent; keywords: string[] }> = [
   },
   {
     intent: 'viral_content_analysis',
-    keywords: ['爆款', '高播放', '涨粉', '什么特征', '共性', '标题', '封面', '标签'],
+    keywords: ['爆款', '高播放', '涨粉', '什么特征', '共性', '标题', '封面', '标签', '高表现内容'],
   },
   {
     intent: 'writing_strategy',
-    keywords: ['选题', '写作', '标题优化', '草稿', '评分', '改写', '怎么写'],
+    keywords: ['选题', '写作', '标题优化', '草稿', '评分', '改写', '怎么写', '内容策略'],
   },
   {
     intent: 'trend_analysis',
@@ -27,7 +27,7 @@ export function detectAgentIntent(question: string): AgentIntent {
   const normalized = question.toLowerCase();
 
   for (const rule of intentRules) {
-    if (rule.keywords.some((keyword) => normalized.includes(keyword))) {
+    if (rule.keywords.some((keyword) => normalized.includes(keyword.toLowerCase()))) {
       return rule.intent;
     }
   }

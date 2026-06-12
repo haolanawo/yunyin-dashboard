@@ -26,14 +26,12 @@ export function AgentWorkspace() {
                   <Bot size={18} />
                   AI Content Strategy Agent
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
-                  Ask a strategy question and review the answer, tool trace, evidence, and saved sessions.
-                </p>
+                <p className="mt-1 text-sm text-gray-500">提一个策略问题，查看回答、工具轨迹、证据和历史会话。</p>
                 <textarea
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
                   className="mt-4 min-h-28 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  placeholder="Describe the content strategy question you want the agent to answer."
+                  placeholder="比如：最近30天 AI 编程类内容，什么特征最容易带来高播放和涨粉？"
                 />
               </div>
               <Button
@@ -42,16 +40,16 @@ export function AgentWorkspace() {
                 onClick={() => agentRun.mutate(question.trim())}
               >
                 <Send size={16} />
-                Run Agent
+                运行 Agent
               </Button>
             </div>
           </Card>
         </div>
 
         <div className="col-span-12 lg:col-span-7">
-          <Card title="Final Answer" actions={<Sparkles size={16} className="text-brand-600" />}>
+          <Card title="最终回答" actions={<Sparkles size={16} className="text-brand-600" />}>
             {agentRun.isPending ? (
-              <p className="text-sm text-gray-500">Running skill routing, SQL, analytics, retrieval, and critique...</p>
+              <p className="text-sm text-gray-500">正在执行技能路由、SQL 查询、统计分析、检索和审查...</p>
             ) : agentRun.error ? (
               <p className="text-sm text-red-600">{agentRun.error.message}</p>
             ) : agentRun.data ? (
@@ -61,7 +59,7 @@ export function AgentWorkspace() {
                   {agentRun.data.answer}
                 </pre>
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Suggestions</p>
+                  <p className="text-sm font-semibold text-gray-800">下一步建议</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600">
                     {agentRun.data.suggestions.map((suggestion, index) => (
                       <li key={`${suggestion}-${index}`}>{suggestion}</li>
@@ -70,7 +68,7 @@ export function AgentWorkspace() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Run a question to see the full agent output.</p>
+              <p className="text-sm text-gray-500">运行一个问题后，这里会显示完整的 Agent 结果。</p>
             )}
           </Card>
         </div>

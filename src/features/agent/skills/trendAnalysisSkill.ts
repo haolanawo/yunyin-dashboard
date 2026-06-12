@@ -1,5 +1,6 @@
 import type { StrategySkill } from './types';
 import { runSkillPipeline } from './shared';
+import { detectPlatform, extractDayWindow } from '../utils';
 
 export const trendAnalysisSkill: StrategySkill = {
   name: 'trend_analysis_skill',
@@ -7,7 +8,10 @@ export const trendAnalysisSkill: StrategySkill = {
   whenToUse: ['recent performance', 'growth', 'trend', 'anomaly'],
   requiredTools: ['queryDatabaseTool', 'runAnalyticsTool', 'generateStrategyReportTool'],
   run(context) {
-    const template = context.input.question.includes('7') ? 'top_content_last_7_days' : 'anomalous_growth_content';
+    const dayWindow = extractDayWindow(context.input.question);
+    const template = context.input.question.includes('异常') ? 'anomalous_growth_content' : dayWindow <= 7 ? 'top_content_last_7_days' : 'top_content_last_30_days';
+    const platform = detectPlatform(context.input.question);
+
     return runSkillPipeline({
       skillName: this.name,
       context,
@@ -17,8 +21,8 @@ export const trendAnalysisSkill: StrategySkill = {
       },
       analyticsInput: {
         question: context.input.question,
-        platform: 'cross_platform',
-        mode: 'overview',
+        platform,
+        mode: platform === 'zhihu' ? 'zhihu_stats' : 'overview',
       },
     });
   },

@@ -4,6 +4,7 @@ import { reuseMemoryInAgent } from './memory/reuseMemoryInAgent';
 import { detectAgentIntent } from './intent';
 import { skillRouter } from './skills/skillRouter';
 import type { AgentInput, AgentResult } from './types';
+import { buildEvidenceDigest } from './utils';
 
 async function synthesizeWithLlm(params: {
   input: AgentInput;
@@ -15,14 +16,15 @@ async function synthesizeWithLlm(params: {
     return null;
   }
 
-  const evidenceTitles = params.draft.evidence.map((item) => `- [${item.type}] ${item.title}`).join('\n');
+  const evidenceDigest = buildEvidenceDigest(params.draft.evidence);
   const suggestions = params.draft.suggestions.map((item) => `- ${item}`).join('\n');
+  const criticEvidence = params.draft.evidence.find((item) => item.title.includes('Critic'));
 
   const content = await adapter.generate([
     {
       role: 'system',
       content:
-        'You are an AI content strategy agent. Rewrite the draft answer into concise Chinese. Keep every claim grounded in the provided evidence and uncertainty notes. Return strict JSON with keys "answer" and "suggestions". "suggestions" must be an array of strings.',
+        'You are an AI content strategy agent. Rewrite the draft answer into concise, professional Chinese. Every important claim must be grounded in the provided evidence. The final answer must explicitly include: 1) sample scope, 2) data basis, 3) common patterns or findings, 4) at least one typical example if evidence exists, 5) uncertainty or risk note, 6) next-step actions. Return strict JSON with keys "answer" and "suggestions". "suggestions" must be an array of short Chinese action items.',
     },
     {
       role: 'user',
@@ -31,7 +33,8 @@ async function synthesizeWithLlm(params: {
         `Intent:\n${params.draft.intent}`,
         `Memory Summary:\n${params.memorySummary || 'none'}`,
         `Draft Answer:\n${params.draft.answer}`,
-        `Evidence:\n${evidenceTitles || 'none'}`,
+        `Evidence:\n${evidenceDigest || 'none'}`,
+        `Critic:\n${criticEvidence ? JSON.stringify(criticEvidence.data, null, 2) : 'none'}`,
         `Draft Suggestions:\n${suggestions || 'none'}`,
       ].join('\n\n'),
     },
