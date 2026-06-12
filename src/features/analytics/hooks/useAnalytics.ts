@@ -177,7 +177,7 @@ export function useTopContents(limit: number = 10) {
         .in('content_id', topIds);
       if (cErr) throw cErr;
 
-      const contentMap = new Map((contents ?? []).map((c) => [c.content_id, c]));
+      const contentMap = new Map<string, any>((contents ?? []).map((c: any) => [c.content_id, c]));
 
       return topIds
         .map((id): TopContent | null => {
