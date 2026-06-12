@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
+  Bot,
   ChevronDown,
   FileText,
   LayoutDashboard,
@@ -32,6 +33,7 @@ const topLinks: NavLink[] = [
   { key: 'dashboard', label: '首页总览', path: '/dashboard', icon: LayoutDashboard },
   { key: 'analytics', label: '跨平台统计', path: '/analytics', icon: BarChart3 },
   { key: 'accounts', label: '账号管理', path: '/accounts', icon: Users },
+  { key: 'agent', label: 'AI Agent', path: '/agent', icon: Bot },
 ];
 
 const platformGroups: NavGroup[] = [
@@ -108,7 +110,7 @@ export function Sidebar() {
     <aside className="w-60 bg-sidebar-bg flex flex-col h-screen shrink-0">
       <div className="flex items-center gap-2 px-5 h-16 border-b border-white/10">
         <div className="w-7 h-7 rounded bg-brand-500 flex items-center justify-center text-white font-bold text-sm">V</div>
-        <span className="text-white font-semibold text-sm truncate">直觉向量看板</span>
+        <span className="text-white font-semibold text-sm truncate">内容策略看板</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto">
         <div className="space-y-1">
@@ -129,7 +131,7 @@ export function Sidebar() {
           ))}
         </div>
       </nav>
-      <div className="px-5 py-3 border-t border-white/10 text-sidebar-text text-xs">v0.4.0</div>
+      <div className="px-5 py-3 border-t border-white/10 text-sidebar-text text-xs">v0.5.0</div>
     </aside>
   );
 }
