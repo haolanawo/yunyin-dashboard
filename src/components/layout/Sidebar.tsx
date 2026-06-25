@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
   Bot,
   ChevronDown,
   FileText,
   LayoutDashboard,
+  Sparkles,
   Settings,
   TrendingUp,
   Tv,
@@ -34,6 +35,7 @@ const topLinks: NavLink[] = [
   { key: 'analytics', label: '跨平台统计', path: '/analytics', icon: BarChart3 },
   { key: 'accounts', label: '账号管理', path: '/accounts', icon: Users },
   { key: 'agent', label: 'AI Agent', path: '/agent', icon: Bot },
+  { key: 'ai-dashboard', label: 'AI 图表', path: '/ai-dashboard', icon: Sparkles },
 ];
 
 const platformGroups: NavGroup[] = [
@@ -63,13 +65,26 @@ const bottomLinks: NavLink[] = [
   { key: 'settings', label: '系统设置', path: '/settings', icon: Settings },
 ];
 
-function isActivePath(pathname: string, path: string) {
-  const [basePath] = path.split('?');
+function isActivePath(pathname: string, currentQuery: string, path: string) {
+  const [basePath, query = ''] = path.split('?');
+  if (query) {
+    return pathname === basePath && currentQuery === query;
+  }
   return pathname === basePath || pathname.startsWith(`${basePath}/`);
 }
 
-function NavItem({ item, pathname, nested = false }: { item: NavLink; pathname: string; nested?: boolean }) {
-  const isActive = isActivePath(pathname, item.path);
+function NavItem({
+  item,
+  pathname,
+  currentQuery,
+  nested = false,
+}: {
+  item: NavLink;
+  pathname: string;
+  currentQuery: string;
+  nested?: boolean;
+}) {
+  const isActive = isActivePath(pathname, currentQuery, item.path);
   return (
     <Link
       href={item.path}
@@ -84,7 +99,15 @@ function NavItem({ item, pathname, nested = false }: { item: NavLink; pathname: 
   );
 }
 
-function PlatformGroup({ group, pathname }: { group: NavGroup; pathname: string }) {
+function PlatformGroup({
+  group,
+  pathname,
+  currentQuery,
+}: {
+  group: NavGroup;
+  pathname: string;
+  currentQuery: string;
+}) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between px-3 py-2 text-xs font-medium text-sidebar-text/80">
@@ -94,9 +117,9 @@ function PlatformGroup({ group, pathname }: { group: NavGroup; pathname: string 
         </span>
         <ChevronDown size={14} />
       </div>
-      <div className="space-y-1">
+        <div className="space-y-1">
         {group.items.map((item) => (
-          <NavItem key={item.key} item={item} pathname={pathname} nested />
+          <NavItem key={item.key} item={item} pathname={pathname} currentQuery={currentQuery} nested />
         ))}
       </div>
     </div>
@@ -105,6 +128,8 @@ function PlatformGroup({ group, pathname }: { group: NavGroup; pathname: string 
 
 export function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
 
   return (
     <aside className="w-60 bg-sidebar-bg flex flex-col h-screen shrink-0">
@@ -115,19 +140,19 @@ export function Sidebar() {
       <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto">
         <div className="space-y-1">
           {topLinks.map((item) => (
-            <NavItem key={item.key} item={item} pathname={pathname} />
+            <NavItem key={item.key} item={item} pathname={pathname} currentQuery={currentQuery} />
           ))}
         </div>
 
         <div className="pt-2 border-t border-white/10 space-y-2">
           {platformGroups.map((group) => (
-            <PlatformGroup key={group.key} group={group} pathname={pathname} />
+            <PlatformGroup key={group.key} group={group} pathname={pathname} currentQuery={currentQuery} />
           ))}
         </div>
 
         <div className="pt-2 border-t border-white/10 space-y-1">
           {bottomLinks.map((item) => (
-            <NavItem key={item.key} item={item} pathname={pathname} />
+            <NavItem key={item.key} item={item} pathname={pathname} currentQuery={currentQuery} />
           ))}
         </div>
       </nav>

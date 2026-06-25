@@ -9,6 +9,7 @@ export interface ContentItem {
   content_id: string;
   title: string | null;
   platform: string;
+  account_id: string | null;
   account_name: string | null;
   publish_date: string | null;
   content_type: string | null;
@@ -28,6 +29,31 @@ interface UseContentsListParams {
 interface ContentsListResult {
   items: ContentItem[];
   total: number;
+}
+
+function displayAccountName(accountId: string | null, accountName?: string | null): string {
+  const cleanName = accountName?.trim();
+  if (cleanName) return cleanName;
+  if (accountId?.trim()) return `待补账号 ${accountId.trim()}`;
+  return '账号待补';
+}
+
+function formatDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : String(value).slice(0, 10);
 }
 
 export function useContentsList({
@@ -57,7 +83,7 @@ export function useContentsList({
           url,
           question_id
         `,
-          { count: 'exact' }
+          { count: 'exact' },
         )
         .order('publish_date', { ascending: false, nullsFirst: false })
         .range(from, to);
@@ -70,22 +96,26 @@ export function useContentsList({
       if (error) throw error;
 
       const rows = data ?? [];
-      const accountIds = [...new Set(rows.map((c) => c.account_id).filter(Boolean))] as string[];
-      const contentIds = rows.map((c) => c.content_id);
+      const accountIds = [...new Set(rows.map((content) => content.account_id).filter(Boolean))] as string[];
+      const contentIds = rows.map((content) => content.content_id);
       const accountMap = new Map<string, string>();
       const scoreMap = new Map<string, number>();
 
       if (accountIds.length > 0) {
-        const [zhihuAccounts, bilibiliAccounts] = await Promise.all([
-          supabase.from('zhihu_accounts').select('account_id, account_name').in('account_id', accountIds),
+        const [zhihuAccountsById, zhihuAccountsByUid, bilibiliAccounts] = await Promise.all([
+          supabase.from('zhihu_accounts').select('account_id, account_name, zhihu_uid').in('account_id', accountIds),
+          supabase.from('zhihu_accounts').select('account_id, account_name, zhihu_uid').in('zhihu_uid', accountIds),
           supabase.from('bilibili_accounts').select('account_id, account_name').in('account_id', accountIds),
         ]);
 
-        (zhihuAccounts.data ?? []).forEach((a) => {
-          accountMap.set(a.account_id, a.account_name ?? '未知账号');
+        [...(zhihuAccountsById.data ?? []), ...(zhihuAccountsByUid.data ?? [])].forEach((account) => {
+          accountMap.set(account.account_id, displayAccountName(account.account_id, account.account_name));
+          if (account.zhihu_uid) {
+            accountMap.set(account.zhihu_uid, displayAccountName(account.zhihu_uid, account.account_name));
+          }
         });
-        (bilibiliAccounts.data ?? []).forEach((a) => {
-          accountMap.set(a.account_id, a.account_name ?? '未知账号');
+        (bilibiliAccounts.data ?? []).forEach((account) => {
+          accountMap.set(account.account_id, displayAccountName(account.account_id, account.account_name));
         });
       }
 
@@ -104,16 +134,20 @@ export function useContentsList({
 
       return {
         total: count ?? 0,
-        items: rows.map((c): ContentItem => ({
-          content_id: c.content_id,
-          title: c.title,
-          platform: c.platform ?? 'zhihu',
-          account_name: c.account_id ? (accountMap.get(c.account_id) ?? '未知账号') : '未知账号',
-          publish_date: c.publish_date,
-          content_type: c.content_type,
-          ai_score: scoreMap.get(c.content_id) ?? null,
-          content_url: c.content_url ?? c.url ?? null,
-          question_id: c.question_id ?? null,
+        items: rows.map((content): ContentItem => ({
+          content_id: content.content_id,
+          title: content.title,
+          platform: content.platform ?? 'zhihu',
+          account_id: content.account_id ?? null,
+          account_name: displayAccountName(
+            content.account_id ?? null,
+            content.account_id ? accountMap.get(content.account_id) : null,
+          ),
+          publish_date: formatDateOnly(content.publish_date),
+          content_type: content.content_type,
+          ai_score: scoreMap.get(content.content_id) ?? null,
+          content_url: content.content_url ?? content.url ?? null,
+          question_id: content.question_id ?? null,
         })),
       };
     },

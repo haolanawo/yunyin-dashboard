@@ -19,17 +19,26 @@ interface ContentTableProps {
 }
 
 function formatDate(value: string | null): string {
-  return value || '--';
+  return value || '日期待补';
 }
 
 function getDisplayTitle(item: ContentItem): string {
-  if (item.title) return item.title;
+  const title = item.title?.trim();
+  if (title) return title;
   if (item.content_type === 'answer' && item.question_id) return `知乎问题 #${item.question_id}`;
-  return item.content_type === 'answer' ? '知乎回答' : '无标题';
+  if (item.content_type === 'answer') return '知乎回答（标题待补）';
+  if (item.content_type === 'video') return 'B站视频（标题待补）';
+  return '内容标题待补';
+}
+
+function getTypeLabel(value: string | null): string {
+  if (!value) return '类型待补';
+  return TYPE_LABELS[value] ?? value;
 }
 
 function ScoreCell({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-xs text-gray-400">--</span>;
+  if (score === null) return <span className="text-xs text-gray-400">待评分</span>;
+
   const color = score >= 75 ? 'text-green-600' : score >= 50 ? 'text-yellow-600' : 'text-red-500';
   return <span className={`text-xs font-semibold ${color}`}>{score.toFixed(1)}</span>;
 }
@@ -41,10 +50,10 @@ function LoadingSkeleton() {
       <div className="flex items-center gap-4 border-b border-gray-100 px-2 py-3">
         <div className="flex-1" />
         <div className="w-16" />
-        <div className="w-24" />
-        <div className="w-14" />
-        <div className="w-24" />
+        <div className="w-28" />
         <div className="w-16" />
+        <div className="w-28" />
+        <div className="w-20" />
       </div>
       {[1, 2, 3, 4, 5].map((index) => (
         <div key={index} className="flex items-center gap-4 border-b border-gray-50 px-2 py-3">
@@ -54,17 +63,17 @@ function LoadingSkeleton() {
           <div className="flex w-16 justify-center">
             <div className="skeleton-shimmer h-5 w-10 rounded" />
           </div>
-          <div className="w-24">
-            <div className="skeleton-shimmer h-4 w-16 rounded" />
-          </div>
-          <div className="flex w-14 justify-center">
-            <div className="skeleton-shimmer h-4 w-8 rounded" />
-          </div>
-          <div className="w-24">
+          <div className="w-28">
             <div className="skeleton-shimmer h-4 w-20 rounded" />
           </div>
-          <div className="flex w-16 justify-end">
+          <div className="flex w-16 justify-center">
             <div className="skeleton-shimmer h-4 w-10 rounded" />
+          </div>
+          <div className="w-28">
+            <div className="skeleton-shimmer h-4 w-20 rounded" />
+          </div>
+          <div className="flex w-20 justify-end">
+            <div className="skeleton-shimmer h-4 w-12 rounded" />
           </div>
         </div>
       ))}
@@ -103,15 +112,17 @@ export default function ContentTable({ items, isLoading, isError, error }: Conte
           <tr className="border-b border-gray-100">
             <th className="px-2 py-3 text-left text-xs font-medium text-gray-500">标题</th>
             <th className="w-16 px-2 py-3 text-left text-xs font-medium text-gray-500">平台</th>
-            <th className="w-24 px-2 py-3 text-left text-xs font-medium text-gray-500">账号</th>
-            <th className="w-14 px-2 py-3 text-left text-xs font-medium text-gray-500">类型</th>
-            <th className="w-24 px-2 py-3 text-left text-xs font-medium text-gray-500">发布日期</th>
-            <th className="w-16 px-2 py-3 text-right text-xs font-medium text-gray-500">AI 分</th>
+            <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500">账号</th>
+            <th className="w-16 px-2 py-3 text-left text-xs font-medium text-gray-500">类型</th>
+            <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500">发布日期</th>
+            <th className="w-20 px-2 py-3 text-right text-xs font-medium text-gray-500">AI 分</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item) => {
             const displayTitle = getDisplayTitle(item);
+            const accountTitle = item.account_id ? `${item.account_name} / ${item.account_id}` : item.account_name;
+
             return (
               <tr
                 key={item.content_id}
@@ -141,10 +152,10 @@ export default function ContentTable({ items, isLoading, isError, error }: Conte
                     {PLATFORM_LABELS[item.platform] ?? item.platform}
                   </span>
                 </td>
-                <td className="max-w-[120px] truncate px-2 py-3 text-gray-600">{item.account_name}</td>
-                <td className="px-2 py-3 text-xs text-gray-500">
-                  {TYPE_LABELS[item.content_type ?? ''] ?? item.content_type ?? '--'}
+                <td className="max-w-[140px] truncate px-2 py-3 text-gray-600" title={accountTitle ?? undefined}>
+                  {item.account_name}
                 </td>
+                <td className="px-2 py-3 text-xs text-gray-500">{getTypeLabel(item.content_type)}</td>
                 <td className="px-2 py-3 text-xs text-gray-500">{formatDate(item.publish_date)}</td>
                 <td className="px-2 py-3 text-right">
                   <ScoreCell score={item.ai_score} />

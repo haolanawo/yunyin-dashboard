@@ -13,7 +13,7 @@ export const dashboardWidgets: WidgetConfig[] = [
   {
     id: 'summary-stats',
     title: '经营总览',
-    description: '跨平台账号、内容和互动指标',
+    description: '跨平台账号、内容、互动和效率指标',
     grid: 'col-span-12',
     component: lazy(() => import('./components/SummaryStats')),
   },
@@ -26,8 +26,8 @@ export const dashboardWidgets: WidgetConfig[] = [
   },
   {
     id: 'quick-actions',
-    title: '快捷入口',
-    description: '常用运营看板入口',
+    title: '运营入口',
+    description: '常用经营看板入口',
     grid: 'col-span-6',
     component: lazy(() => import('./components/QuickActions')),
   },

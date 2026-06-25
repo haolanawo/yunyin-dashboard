@@ -1,0 +1,101 @@
+[
+  {
+    "id": "72a90e9f-d15b-4bfa-bbd1-63ef6effbd8e",
+    "dataSourceId": "supabase",
+    "selectedTables": [
+      "zhihu_accounts",
+      "bilibili_accounts",
+      "contents",
+      "metrics_daily",
+      "structural_labels",
+      "writing_rules",
+      "content_metric_snapshots",
+      "crawler_runs"
+    ],
+    "createdAt": "2026-06-17T02:15:26.513Z",
+    "title": "B站各账号内容表现对比",
+    "description": "B站5个账号的平均播放量、点赞数和评论数对比，可以看出AI破局者在播放量和互动数据上表现最佳，大山老师讲Ai相对较弱。",
+    "querySql": "SELECT a.account_name, \n       ROUND(AVG(cms.views)) as avg_views,\n       ROUND(AVG(cms.likes)) as avg_likes,\n       ROUND(AVG(cms.comments)) as avg_comments\nFROM bilibili_accounts a\nJOIN contents c ON a.account_id = c.account_id\nLEFT JOIN content_metric_snapshots cms ON c.content_id = cms.content_id\nWHERE c.platform = 'bilibili'\nGROUP BY a.account_name\nORDER BY avg_views DESC NULLS LAST",
+    "vizConfig": {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {
+        "values": []
+      },
+      "transform": [
+        {
+          "fold": [
+            "avg_views",
+            "avg_likes",
+            "avg_comments"
+          ],
+          "as": [
+            "metric",
+            "value"
+          ]
+        }
+      ],
+      "mark": {
+        "type": "bar",
+        "tooltip": true
+      },
+      "encoding": {
+        "x": {
+          "field": "account_name",
+          "type": "nominal",
+          "title": "账号名称",
+          "sort": "-y",
+          "axis": {
+            "labelAngle": -30
+          }
+        },
+        "y": {
+          "field": "value",
+          "type": "quantitative",
+          "title": "平均值"
+        },
+        "color": {
+          "field": "metric",
+          "type": "nominal",
+          "title": "指标",
+          "scale": {
+            "domain": [
+              "avg_views",
+              "avg_likes",
+              "avg_comments"
+            ],
+            "range": [
+              "#4C78A8",
+              "#54A24B",
+              "#E45756"
+            ]
+          },
+          "legend": {
+            "labelExpr": "datum.label == 'avg_views' ? '平均播放量' : datum.label == 'avg_likes' ? '平均点赞数' : '平均评论数'"
+          }
+        },
+        "column": {
+          "field": "metric",
+          "type": "ordinal",
+          "title": null,
+          "header": {
+            "labelExpr": "datum.label == 'avg_views' ? '平均播放量' : datum.label == 'avg_likes' ? '平均点赞数' : '平均评论数'"
+          }
+        }
+      },
+      "width": 180,
+      "height": 300,
+      "config": {
+        "axis": {
+          "grid": true,
+          "gridOpacity": 0.3
+        },
+        "view": {
+          "stroke": null
+        }
+      }
+    },
+    "layoutW": 10,
+    "layoutH": 6,
+    "layoutOrder": 0
+  }
+]

@@ -40,12 +40,21 @@
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://pqpopervpirlyklviyjq.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+SUPABASE_DATABASE_URL=postgresql://...pooler.supabase.com:6543/postgres
 ```
 
 ### 绝不在前端暴露
 ```
 SUPABASE_SERVICE_ROLE_KEY  → 仅爬虫本地使用
 ```
+
+## 数据源规则
+
+- Dashboard 运行时只读 Supabase，不再使用本地 PostgreSQL。
+- `SUPABASE_DATABASE_URL` 必须是 Supabase pooled Postgres 连接串。
+- 不要把 `DATABASE_URL` 配成 `localhost`；代码会默认拒绝本地库。
+- 服务端 API 使用内存缓存、磁盘缓存和 HTTP/CDN 缓存头保护 Supabase 流量。
+- `/agent` 历史会话使用服务端直连 Supabase Postgres 持久化，依赖 `SUPABASE_DATABASE_URL`，不再写本地 `json` 文件。
 
 ## 部署命令
 

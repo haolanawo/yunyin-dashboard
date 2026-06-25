@@ -59,7 +59,7 @@ export function useAccountDetail(accountId: string) {
           account: {
             account_id: account.account_id,
             account_name: account.account_name ?? '未知',
-            follower_count: account.follower_count ?? null,
+            follower_count: account.followers ?? null,
             total_answers: account.total_answers ?? null,
           },
           posts: [],
@@ -113,7 +113,7 @@ export function useAccountDetail(accountId: string) {
         account: {
           account_id: account.account_id,
           account_name: account.account_name ?? '未知',
-          follower_count: account.follower_count ?? null,
+          follower_count: account.followers ?? null,
           total_answers: account.total_answers ?? null,
         },
         posts,

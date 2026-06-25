@@ -67,7 +67,6 @@ export async function runContentStrategyAgent(input: AgentInput): Promise<AgentR
     memorySummary: memory.summary,
   });
 
-  const memoryNote = memory.summary ? `\n\nMemory context reused:\n${memory.summary}` : '';
   let llmOutput: Awaited<ReturnType<typeof synthesizeWithLlm>> = null;
 
   try {
@@ -81,7 +80,7 @@ export async function runContentStrategyAgent(input: AgentInput): Promise<AgentR
   }
 
   const finalResult: AgentResult = {
-    answer: `${llmOutput?.answer ?? result.answer}${memoryNote}`,
+    answer: llmOutput?.answer ?? result.answer,
     intent: result.intent,
     toolCalls: [
       ...result.toolCalls,

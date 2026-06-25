@@ -25,7 +25,8 @@ function formatNum(n: number): string {
 }
 
 export default function AccountComparison() {
-  const { data, isLoading, isError, error } = useAccountComparison();
+  const { data: payload, isLoading, isError, error } = useAccountComparison();
+  const data = payload?.data;
 
   if (isLoading) return <LoadingSkeleton />;
 

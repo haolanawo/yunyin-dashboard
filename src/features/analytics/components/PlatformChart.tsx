@@ -1,14 +1,15 @@
 'use client';
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AlertCircle, TicketPercent } from 'lucide-react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePlatformDistribution, type PlatformDist } from '@/features/analytics/hooks/useAnalytics';
 
 const PLATFORM_LABELS: Record<string, string> = { zhihu: '知乎', bilibili: 'B站' };
 const PLATFORM_COLORS: Record<string, string> = { zhihu: '#2563eb', bilibili: '#ec4899' };
 const FALLBACK_COLORS = ['#2563eb', '#ec4899', '#10b981', '#f59e0b'];
 
-function formatNumber(n: number): string {
+function formatNumber(value: number): string {
+  const n = Number(value ?? 0);
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   return n.toLocaleString('zh-CN');
@@ -21,28 +22,33 @@ function Donut({
 }: {
   title: string;
   data: PlatformDist[];
-  dataKey: 'count' | 'likes';
+  dataKey: 'count' | 'traffic';
 }) {
-  const chartData = data.map((item) => ({
-    name: PLATFORM_LABELS[item.platform] ?? item.platform,
-    value: item[dataKey],
-    platform: item.platform,
-  }));
+  const chartData = data
+    .map((item) => ({
+      name: PLATFORM_LABELS[item.platform] ?? item.platform,
+      value: item[dataKey],
+      platform: item.platform,
+    }))
+    .filter((item) => dataKey === 'count' || item.value > 0);
+
+  if (chartData.length === 0) {
+    return (
+      <div className="min-w-0">
+        <div className="mb-2 text-xs font-medium text-gray-500">{title}</div>
+        <div className="flex h-[188px] items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-400">
+          暂无最新快照播放量
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0">
-      <div className="text-xs font-medium text-gray-500 mb-2">{title}</div>
+      <div className="mb-2 text-xs font-medium text-gray-500">{title}</div>
       <ResponsiveContainer width="100%" height={188}>
         <PieChart>
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            innerRadius={42}
-            outerRadius={72}
-            paddingAngle={4}
-            dataKey="value"
-          >
+          <Pie data={chartData} cx="50%" cy="50%" innerRadius={42} outerRadius={72} paddingAngle={4} dataKey="value">
             {chartData.map((entry, index) => (
               <Cell
                 key={entry.platform}
@@ -58,7 +64,7 @@ function Donut({
           <div key={item.platform} className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 text-gray-500">
               <span
-                className="w-2 h-2 rounded-full"
+                className="h-2 w-2 rounded-full"
                 style={{ background: PLATFORM_COLORS[item.platform] ?? '#9ca3af' }}
               />
               {item.name}
@@ -74,8 +80,8 @@ function Donut({
 function InvitePlaceholder() {
   return (
     <div>
-      <div className="text-xs font-medium text-gray-500 mb-2">邀请码转换</div>
-      <div className="h-[188px] rounded-lg border border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
+      <div className="mb-2 text-xs font-medium text-gray-500">邀请码转换</div>
+      <div className="flex h-[188px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 text-gray-400">
         <TicketPercent size={28} className="mb-2" />
         <div className="text-xs">预留转换圆盘</div>
       </div>
@@ -86,41 +92,42 @@ function InvitePlaceholder() {
 
 function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-3 gap-5 animate-pulse">
+    <div className="grid animate-pulse grid-cols-3 gap-5">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="h-56 bg-gray-100 rounded-lg" />
+        <div key={i} className="h-56 rounded-lg bg-gray-100" />
       ))}
     </div>
   );
 }
 
 export default function PlatformChart() {
-  const { data, isLoading, isError, error } = usePlatformDistribution();
+  const { data: payload, isLoading, isError, error } = usePlatformDistribution();
+  const data = payload?.data;
 
   if (isLoading) return <LoadingSkeleton />;
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-2">
+      <div className="flex h-64 flex-col items-center justify-center gap-2 text-gray-400">
         <AlertCircle size={20} className="text-red-400" />
         <p className="text-sm">数据加载失败</p>
-        <p className="text-xs">{error?.message}</p>
+        <p className="text-xs">{error?.message ?? '未知错误'}</p>
       </div>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
+      <div className="flex h-64 items-center justify-center text-gray-400">
         <p className="text-sm">暂无数据</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
       <Donut title="内容分布" data={data} dataKey="count" />
-      <Donut title="点赞分布" data={data} dataKey="likes" />
+      <Donut title="播放量分布（最新快照）" data={data} dataKey="traffic" />
       <InvitePlaceholder />
     </div>
   );

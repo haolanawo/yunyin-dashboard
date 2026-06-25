@@ -42,6 +42,19 @@ export function useBilibiliVideos(page: number = 0) {
         return { videos: [] as BilibiliVideo[], total: count ?? 0 };
       }
 
+      const contentIds = contents.map((c) => c.content_id);
+      const { data: snapshots } = await supabase
+        .from('content_metric_snapshots')
+        .select('content_id, snapshot_date, comments')
+        .in('content_id', contentIds)
+        .order('snapshot_date', { ascending: false });
+      const commentMap = new Map<string, number>();
+      (snapshots ?? []).forEach((s) => {
+        if (!commentMap.has(s.content_id)) {
+          commentMap.set(s.content_id, Number(s.comments ?? 0));
+        }
+      });
+
       // Fetch account names from bilibili_accounts
       const accountIds = [...new Set((contents ?? []).map((c) => c.account_id).filter(Boolean))] as string[];
       const accountMap = new Map<string, string>();
@@ -66,7 +79,7 @@ export function useBilibiliVideos(page: number = 0) {
         favorite_count: c.favorite_count ?? null,
         share_count: c.share_count ?? null,
         danmaku_count: c.danmaku_count ?? null,
-        reply_count: null,
+        reply_count: commentMap.get(c.content_id) ?? null,
       }));
 
       return { videos, total: count ?? videos.length };

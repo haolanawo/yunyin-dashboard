@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readMemoryStore } from '@/features/agent/memory/localMemoryStore';
+import { deleteMemoryRecord, readMemoryStore, renameMemoryRecord } from '@/features/agent/memory/localMemoryStore';
 import { runContentStrategyAgent } from '@/features/agent/orchestrator';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,45 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Agent execution failed.' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const body = (await request.json()) as { id?: string; question?: string };
+    const id = body.id?.trim();
+    const question = body.question?.trim();
+
+    if (!id || !question) {
+      return NextResponse.json({ error: 'Session id and question are required.' }, { status: 400 });
+    }
+
+    const session = await renameMemoryRecord(id, question);
+    return NextResponse.json({ session });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update agent session.' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id')?.trim();
+
+    if (!id) {
+      return NextResponse.json({ error: 'Session id is required.' }, { status: 400 });
+    }
+
+    await deleteMemoryRecord(id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete agent session.' },
       { status: 500 },
     );
   }

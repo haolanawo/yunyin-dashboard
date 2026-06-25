@@ -1,20 +1,20 @@
-// ============================================================
-// Trends Hooks
-// ============================================================
-
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { createClient } from '@/lib/supabase';
+import { fetchCachedApi, type CachedApiResponse } from '@/lib/client/cachedApi';
 
-const supabase = createClient();
+const LONG_STALE = 1000 * 60 * 60 * 24;
+
+export type TrendPlatform = 'zhihu' | 'bilibili';
+export type TrendMetric = 'traffic' | 'interactionRate';
 
 export interface AccountTrend {
   account_name: string;
   account_id: string;
   date: string;
-  votes: number;
-  comments: number;
+  traffic: number;
+  interactionRate: number;
+  hasObservation: boolean;
 }
 
 export interface AccountOption {
@@ -22,60 +22,33 @@ export interface AccountOption {
   account_name: string;
 }
 
-/** 获取所有账号列表（用于选择器） */
-export function useAccountList() {
-  return useQuery({
-    queryKey: ['account-list'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('zhihu_accounts')
-        .select('account_id, account_name')
-        .order('account_name', { ascending: true });
-      if (error) throw error;
-      return (data ?? []).filter((a) => a.account_id).map(
-        (a): AccountOption => ({ account_id: a.account_id, account_name: a.account_name ?? '未知' }),
-      );
-    },
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+export function useAccountList(platform: TrendPlatform) {
+  return useQuery<CachedApiResponse<AccountOption[]>>({
+    queryKey: ['account-list', platform],
+    queryFn: () => fetchCachedApi<AccountOption[]>(`/api/trends/accounts?platform=${platform}`),
+    staleTime: LONG_STALE,
+    refetchOnWindowFocus: false,
   });
 }
 
-/** 按日期范围获取指定账号的指标趋势 */
 export function useAccountTrends(
+  platform: TrendPlatform,
   accountIds: string[],
   dateRange: { start: string; end: string },
 ) {
   const enabled = accountIds.length > 0 && !!dateRange.start && !!dateRange.end;
+  const params = new URLSearchParams({
+    platform,
+    start: dateRange.start,
+    end: dateRange.end,
+  });
+  [...accountIds].sort().forEach((accountId) => params.append('accountId', accountId));
 
-  return useQuery({
-    queryKey: ['account-trends', accountIds, dateRange],
-    queryFn: async () => {
-      if (accountIds.length === 0) return [] as AccountTrend[];
-
-      // 服务端聚合查询：数据库内完成 GROUP BY，返回已汇总结果
-      // 避免客户端 1000 行硬限制，也省掉 JS 侧聚合计算
-      const { data, error } = await supabase.rpc('get_trend_data', {
-        start_date: dateRange.start,
-        end_date: dateRange.end,
-        account_ids: accountIds,
-      });
-
-      if (error) throw error;
-      if (!data || data.length === 0) return [] as AccountTrend[];
-
-      return (data as any[]).map((row) => ({
-        account_name: row.account_name ?? '未知',
-        account_id: row.account_id,
-        date: row.snapshot_date,
-        votes: Number(row.total_votes ?? 0),
-        comments: Number(row.total_comments ?? 0),
-      }));
-    },
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+  return useQuery<CachedApiResponse<AccountTrend[]>>({
+    queryKey: ['account-trends', platform, [...accountIds].sort(), dateRange],
+    queryFn: () => fetchCachedApi<AccountTrend[]>(`/api/trends/series?${params.toString()}`),
+    staleTime: LONG_STALE,
+    refetchOnWindowFocus: false,
     enabled,
   });
 }

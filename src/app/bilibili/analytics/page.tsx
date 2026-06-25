@@ -66,7 +66,7 @@ export default function BilibiliAnalyticsPage() {
         </Suspense>
 
         <Suspense fallback={<ChartSkeleton />}>
-          <ChartCard title="UP主总互动对比（点赞+收藏+评论+分享）">
+          <ChartCard title="UP主互动比排行（互动总量/播放量）">
             <InteractionChart />
           </ChartCard>
         </Suspense>

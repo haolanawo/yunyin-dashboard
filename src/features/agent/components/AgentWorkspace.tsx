@@ -26,12 +26,14 @@ export function AgentWorkspace() {
                   <Bot size={18} />
                   AI Content Strategy Agent
                 </div>
-                <p className="mt-1 text-sm text-gray-500">提一个策略问题，查看回答、工具轨迹、证据和历史会话。</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  输入一个运营问题，Agent 会调用数据查询、分析脚本、知识检索和审查步骤，生成可追溯的策略回答。
+                </p>
                 <textarea
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
                   className="mt-4 min-h-28 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  placeholder="比如：最近30天 AI 编程类内容，什么特征最容易带来高播放和涨粉？"
+                  placeholder="例如：最近30天 AI 编程类内容，什么特征最容易带来高播放和涨粉？"
                 />
               </div>
               <Button
@@ -49,7 +51,7 @@ export function AgentWorkspace() {
         <div className="col-span-12 lg:col-span-7">
           <Card title="最终回答" actions={<Sparkles size={16} className="text-brand-600" />}>
             {agentRun.isPending ? (
-              <p className="text-sm text-gray-500">正在执行技能路由、SQL 查询、统计分析、检索和审查...</p>
+              <p className="text-sm text-gray-500">正在识别意图、调用工具、整理证据并生成回答...</p>
             ) : agentRun.error ? (
               <p className="text-sm text-red-600">{agentRun.error.message}</p>
             ) : agentRun.data ? (
@@ -68,7 +70,7 @@ export function AgentWorkspace() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">运行一个问题后，这里会显示完整的 Agent 结果。</p>
+              <p className="text-sm text-gray-500">运行一个问题后，这里会显示完整 Agent 结果。</p>
             )}
           </Card>
         </div>

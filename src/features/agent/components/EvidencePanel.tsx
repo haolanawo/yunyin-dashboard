@@ -7,10 +7,10 @@ interface EvidencePanelProps {
 
 export function EvidencePanel({ evidence }: EvidencePanelProps) {
   return (
-    <Card title="Evidence">
+    <Card title="证据">
       <div className="space-y-3">
         {evidence.length === 0 ? (
-          <p className="text-sm text-gray-500">No evidence attached yet.</p>
+          <p className="text-sm text-gray-500">运行后会显示本次回答引用的数据、内容和报告。</p>
         ) : (
           evidence.map((item, index) => (
             <div key={`${item.title}-${index}`} className="rounded-md border border-gray-200 p-3">

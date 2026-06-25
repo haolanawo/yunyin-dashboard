@@ -1,38 +1,61 @@
-// ============================================================
-// TrendLineChart — 趋势折线图（多账号对比）
-// ============================================================
-
 'use client';
 
-import { useMemo } from 'react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
-} from 'recharts';
-import type { AccountTrend } from '@/features/trends/hooks/useTrends';
+import { useEffect, useMemo, useState } from 'react';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import type { AccountTrend, TrendMetric } from '@/features/trends/hooks/useTrends';
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899'];
+const COLORS = ['#2563eb', '#db2777', '#f59e0b', '#059669', '#7c3aed', '#ef4444'];
+export type TrendTrafficMode = 'daily' | 'cumulative';
 
 interface ChartDataPoint {
   date: string;
-  [key: string]: string | number;
+  [key: string]: string | number | boolean | null;
+}
+
+type ChartValueMap = Record<string, string | number | boolean | null>;
+
+function formatNumber(n: number): string {
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+  return n.toLocaleString('zh-CN');
+}
+
+function formatRate(n: number): string {
+  return `${(n * 100).toFixed(2)}%`;
 }
 
 export default function TrendLineChart({
   trends,
   metric,
+  trafficMode = 'cumulative',
 }: {
   trends: AccountTrend[];
-  metric: 'votes' | 'comments';
+  metric: TrendMetric;
+  trafficMode?: TrendTrafficMode;
 }) {
   const { chartData, accountNames } = useMemo(() => {
     const accountSet = new Set<string>();
-    const dateMap = new Map<string, Record<string, number>>();
+    const dateMap = new Map<string, ChartValueMap>();
+    const previousTrafficByAccount = new Map<string, number>();
 
-    trends.forEach((t) => {
-      accountSet.add(t.account_name);
-      if (!dateMap.has(t.date)) dateMap.set(t.date, {});
-      dateMap.get(t.date)![t.account_name] = t[metric];
+    [...trends]
+      .sort((a, b) => {
+        const dateOrder = a.date.localeCompare(b.date);
+        return dateOrder !== 0 ? dateOrder : a.account_name.localeCompare(b.account_name);
+      })
+      .forEach((trend) => {
+      accountSet.add(trend.account_name);
+      if (!dateMap.has(trend.date)) dateMap.set(trend.date, {});
+
+      let value: number | null = trend.hasObservation ? trend[metric] : null;
+      if (metric === 'traffic' && trafficMode === 'daily') {
+        const previous = previousTrafficByAccount.get(trend.account_id);
+        value = trend.hasObservation && previous != null ? Math.max(0, trend.traffic - previous) : null;
+        if (trend.hasObservation) previousTrafficByAccount.set(trend.account_id, trend.traffic);
+      }
+
+      dateMap.get(trend.date)![trend.account_name] = value;
+      dateMap.get(trend.date)![`${trend.account_name}__observed`] = trend.hasObservation;
     });
 
     const names = Array.from(accountSet);
@@ -44,12 +67,96 @@ export default function TrendLineChart({
       }));
 
     return { chartData: data, accountNames: names };
-  }, [trends, metric]);
+  }, [trends, metric, trafficMode]);
 
-  if (chartData.length === 0) {
+  const [hiddenNames, setHiddenNames] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setHiddenNames(new Set());
+  }, [accountNames.join('|'), metric, trafficMode]);
+
+  const visibleNames = useMemo(
+    () => accountNames.filter((name) => !hiddenNames.has(name)),
+    [accountNames, hiddenNames],
+  );
+
+  const yDomain = useMemo<[number | 'auto' | ((min: number) => number), number | 'auto' | ((max: number) => number)]>(() => {
+    const values = chartData.flatMap((point) =>
+      visibleNames
+        .map((name) => point[name])
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value)),
+    );
+    if (values.length === 0) return ['auto', 'auto'];
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    if (min === max) {
+      const padding = Math.max(Math.abs(max) * 0.08, metric === 'interactionRate' ? 0.01 : 1);
+      return [Math.max(0, min - padding), max + padding];
+    }
+
+    const padding = (max - min) * 0.12;
+    const lower = metric === 'traffic' ? Math.max(0, min - padding) : min - padding;
+    return [lower, max + padding];
+  }, [chartData, metric, visibleNames]);
+
+  const formatter = metric === 'interactionRate' ? formatRate : formatNumber;
+  const metricName = metric === 'interactionRate' ? '互动比' : trafficMode === 'daily' ? '单日增量' : '累计总量';
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    const visiblePayload = payload.filter((entry: any) => !hiddenNames.has(String(entry.dataKey)));
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        <p className="text-sm">暂无数据</p>
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
+        <div className="mb-1 font-medium text-gray-800">{label}</div>
+        {visiblePayload.map((entry: any) => {
+          const observed = entry.payload?.[`${entry.dataKey}__observed`];
+          return (
+            <div key={entry.dataKey} className="text-gray-600">
+              {entry.name}：{entry.value == null ? '无可比采样' : formatter(Number(entry.value))}
+              <span className="ml-1 text-gray-400">{observed ? metricName : '无采样'}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const CustomLegend = ({ payload }: any) => (
+    <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 pt-2 text-sm">
+      {payload?.map((entry: any) => {
+        const name = String(entry.value);
+        const isHidden = hiddenNames.has(name);
+        return (
+          <button
+            key={name}
+            type="button"
+            onClick={() => {
+              setHiddenNames((current) => {
+                const next = new Set(current);
+                if (next.has(name)) next.delete(name);
+                else next.add(name);
+                return next;
+              });
+            }}
+            className={`inline-flex items-center gap-1.5 transition-colors ${
+              isHidden ? 'text-gray-300' : 'text-gray-700'
+            }`}
+          >
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: isHidden ? '#d1d5db' : entry.color }}
+            />
+            <span className={isHidden ? 'line-through' : ''}>{name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (chartData.length === 0 || accountNames.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center text-gray-400">
+        <p className="text-sm">暂无可展示数据</p>
       </div>
     );
   }
@@ -59,22 +166,26 @@ export default function TrendLineChart({
       <LineChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-        <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-        <Tooltip />
-        <Legend />
-        {accountNames.map((name, i) => (
-          <Line
-            key={name}
-            type="monotone"
-            dataKey={name}
-            name={name}
-            stroke={COLORS[i % COLORS.length]}
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            activeDot={{ r: 5 }}
-            connectNulls
-          />
-        ))}
+        <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={formatter} domain={yDomain} />
+        <Tooltip content={<CustomTooltip />} />
+        <Legend content={<CustomLegend />} />
+        {accountNames.map((name, index) => {
+          const isHidden = hiddenNames.has(name);
+          return (
+            <Line
+              key={name}
+              type="monotone"
+              dataKey={name}
+              name={name}
+              stroke={COLORS[index % COLORS.length]}
+              strokeOpacity={isHidden ? 0 : 1}
+              strokeWidth={2}
+              dot={isHidden ? false : { r: 3 }}
+              activeDot={isHidden ? false : { r: 5 }}
+              connectNulls={false}
+            />
+          );
+        })}
       </LineChart>
     </ResponsiveContainer>
   );

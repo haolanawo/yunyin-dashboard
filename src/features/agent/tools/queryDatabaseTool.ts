@@ -1,13 +1,7 @@
 import type { SqlToolInput, SqlToolResult } from '../types';
+import { queryLocalDb } from '@/lib/local-db';
 import { assertReadOnlySql } from './sqlSafety';
 import { pickSqlTemplate, sqlTemplates } from './sqlTemplates';
-import { runPythonJsonScript } from './pythonBridge';
-
-interface PythonSqlResult {
-  sql: string;
-  rows: Array<Record<string, unknown>>;
-  rowCount: number;
-}
 
 export async function queryDatabaseTool(input: SqlToolInput): Promise<SqlToolResult> {
   const templateKey = input.template || pickSqlTemplate(input.question);
@@ -19,17 +13,16 @@ export async function queryDatabaseTool(input: SqlToolInput): Promise<SqlToolRes
 
   assertReadOnlySql(template.sql);
 
-  const result = (await runPythonJsonScript('scripts/agent/query_db.py', {
-    sql: template.sql,
-  })) as PythonSqlResult;
+  const result = await queryLocalDb(template.sql);
+  const rowCount = result.rowCount ?? result.rows.length;
 
   return {
-    sql: result.sql,
+    sql: template.sql,
     rows: result.rows,
-    rowCount: result.rowCount,
+    rowCount,
     summary:
-      result.rowCount > 0
-        ? `${template.summary} Returned ${result.rowCount} rows.`
+      rowCount > 0
+        ? `${template.summary} Returned ${rowCount} rows.`
         : `${template.summary} No rows returned, data may be insufficient.`,
   };
 }

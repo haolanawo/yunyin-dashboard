@@ -60,18 +60,13 @@ export default function ContentsPage() {
       </div>
 
       <div className="rounded-lg border border-gray-100 bg-white p-4">
-        <ContentTable
-          items={items}
-          isLoading={isLoading}
-          isError={isError}
-          error={error}
-        />
+        <ContentTable items={items} isLoading={isLoading} isError={isError} error={error} />
       </div>
 
       {total > PAGE_SIZE && (
         <div className="mt-4 flex items-center justify-center gap-2">
           <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            onClick={() => setPage((currentPage) => Math.max(0, currentPage - 1))}
             disabled={page === 0}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:opacity-40"
           >
@@ -81,7 +76,7 @@ export default function ContentsPage() {
             {page + 1} / {totalPages}
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            onClick={() => setPage((currentPage) => Math.min(totalPages - 1, currentPage + 1))}
             disabled={page >= totalPages - 1}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:opacity-40"
           >
