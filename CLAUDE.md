@@ -7,7 +7,7 @@
 - **样式**: Tailwind CSS 3.4
 - **数据库**: Supabase 云端 PostgreSQL（前端直连，无需 API 代理层）
 - **图表**: Recharts 2.x
-- **部署**: Netlify
+- **部署**: Vercel
 - **图标**: Lucide React
 - **爬虫**: Python 本地定时任务 → 直接写 Supabase（service_role key）
 

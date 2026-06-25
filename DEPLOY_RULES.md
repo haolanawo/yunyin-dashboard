@@ -1,51 +1,55 @@
 # Dashboard 部署规则
 
-> **核心原则：只上传构建产物，不上传源码、密码、本地配置。**
+> 当前线上部署以 Vercel 绑定项目为准，不再使用 Netlify。
 
-## Netlify 部署流程
+## 当前绑定
 
+`dashboard/.vercel/project.json` 当前指向：
+
+- `projectId`: `prj_2VNuR8YCsyNAQD0fjyGY4h4VPH4M`
+- `orgId`: `team_UpGHiUamLLdmdM4Wv2wjptnj`
+- `projectName`: `dashboard`
+
+## Vercel 部署流程
+
+```bash
+本地验证 npm run typecheck && npm run build
+→ 提交代码
+→ 通过已绑定的 Vercel 项目产生产线部署
 ```
-本地 npm run build → 上传 .next 目录 → Netlify 部署
-```
 
-- `netlify deploy --prod` 会先在本地执行 `npm run build`
-- 然后只上传 `netlify.toml` 里 `publish = ".next"` 指定的目录
-- `.env.local` 在构建时被 Next.js 读取，`NEXT_PUBLIC_*` 变量内联进 JS bundle
-- **`.env.local` 文件本身不会上传到 CDN**
+- 当前项目是 Next.js，Vercel 负责安装依赖、执行构建、托管产物。
+- 本地 `npm run dev` 和 `npm run build` 只用于验证，不是上传 `.next/` 目录到平台。
+- 如果本地运行过 `next build`，再继续用 `npm run dev` 前最好重启 dev server，避免 `.next` 产物混用。
 
-## 哪些文件会上传
+## 哪些文件应保留
 
-| 文件/目录 | 上线 | 说明 |
-|-----------|------|------|
-| `.next/` (构建产物) | ✅ | Next.js 编译输出，Netlify 直接部署 |
-| `public/` (静态资源) | ✅ (打包进.next) | favicon、图片等 |
-
-## 哪些文件绝不上传
-
-| 文件/目录 | 原因 |
+| 文件/目录 | 用途 |
 |-----------|------|
-| `node_modules/` | 依赖由 Netlify 构建时安装 |
-| `.env.local` | 含 Supabase 密钥（虽然 anon key 是公开的），通过 Netlify 环境变量注入 |
-| `.env.production` | 同上 |
-| `.env` | 同上 |
-| `.netlify/` | Netlify 本地缓存，勿删 |
-| `.edgeone/` | EdgeOne 本地缓存 |
-| `.tef_dist/` | EdgeOne 构建产物缓存 |
-| `.next/` (源码目录) | gitignore 排除，不提交到仓库 |
-| `*.tsbuildinfo` | TypeScript 增量编译缓存 |
+| `.vercel/project.json` | 本地目录与 Vercel 项目的绑定信息 |
+| `vercel.json` | 仅当项目未来显式增加时使用；当前没有 |
+
+## 哪些文件不应再使用
+
+| 文件/目录 | 说明 |
+|-----------|------|
+| `netlify.toml` | 已废弃，本项目不再走 Netlify 构建/发布 |
+| `.netlify/` | Netlify 本地状态目录，已废弃 |
 
 ## 环境变量
 
-### 已在 Netlify 配置
-```
-NEXT_PUBLIC_SUPABASE_URL=https://pqpopervpirlyklviyjq.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
-SUPABASE_DATABASE_URL=postgresql://...pooler.supabase.com:6543/postgres
+Vercel 线上需要配置：
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_DATABASE_URL
 ```
 
-### 绝不在前端暴露
-```
-SUPABASE_SERVICE_ROLE_KEY  → 仅爬虫本地使用
+绝不放到前端公开环境中的变量：
+
+```text
+SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ## 数据源规则
@@ -54,16 +58,12 @@ SUPABASE_SERVICE_ROLE_KEY  → 仅爬虫本地使用
 - `SUPABASE_DATABASE_URL` 必须是 Supabase pooled Postgres 连接串。
 - 不要把 `DATABASE_URL` 配成 `localhost`；代码会默认拒绝本地库。
 - 服务端 API 使用内存缓存、磁盘缓存和 HTTP/CDN 缓存头保护 Supabase 流量。
-- `/agent` 历史会话使用服务端直连 Supabase Postgres 持久化，依赖 `SUPABASE_DATABASE_URL`，不再写本地 `json` 文件。
 
-## 部署命令
+## 常用命令
 
 ```bash
 cd dashboard
-netlify deploy --prod
+npm run typecheck
+npm run build
+npm run dev
 ```
-
-## 已知问题
-
-1. **CLI 输出假死**: Windows 下 `netlify deploy --prod` 终端 spinner 可能在 "Uploading files" 卡住，实际 API 已完成。部署后立刻用 MCP `get-deploy` 查实际状态，不等 CLI。
-2. **Supabase 1000 行限制**: 查询 `metrics_daily` 记得加 `.limit(50000)`，否则大日期范围数据被截断。
