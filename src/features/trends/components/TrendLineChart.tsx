@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Brush, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AccountTrend, TrendMetric } from '@/features/trends/hooks/useTrends';
 
 const COLORS = ['#2563eb', '#db2777', '#f59e0b', '#059669', '#7c3aed', '#ef4444'];
@@ -13,6 +13,22 @@ interface ChartDataPoint {
 }
 
 type ChartValueMap = Record<string, string | number | boolean | null>;
+
+function enumerateDates(start: string, end: string) {
+  const result: string[] = [];
+  const cursor = new Date(`${start}T00:00:00+08:00`);
+  const last = new Date(`${end}T00:00:00+08:00`);
+
+  while (cursor <= last) {
+    const year = cursor.getUTCFullYear();
+    const month = `${cursor.getUTCMonth() + 1}`.padStart(2, '0');
+    const day = `${cursor.getUTCDate()}`.padStart(2, '0');
+    result.push(`${year}-${month}-${day}`);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return result;
+}
 
 function formatNumber(n: number): string {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
@@ -28,12 +44,14 @@ export default function TrendLineChart({
   trends,
   metric,
   trafficMode = 'cumulative',
+  dateRange,
 }: {
   trends: AccountTrend[];
   metric: TrendMetric;
   trafficMode?: TrendTrafficMode;
+  dateRange?: { start: string; end: string };
 }) {
-  const { chartData, accountNames } = useMemo(() => {
+  const { chartData, accountNames, observedDateCount } = useMemo(() => {
     const accountSet = new Set<string>();
     const dateMap = new Map<string, ChartValueMap>();
     const previousTrafficByAccount = new Map<string, number>();
@@ -61,21 +79,52 @@ export default function TrendLineChart({
     });
 
     const names = Array.from(accountSet);
-    const data: ChartDataPoint[] = Array.from(dateMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => ({
-        date,
-        ...values,
-      }));
+    const observedDates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b));
+    const dates = dateRange ? enumerateDates(dateRange.start, dateRange.end) : observedDates;
+    const data: ChartDataPoint[] = dates.map((date) => ({
+      date,
+      ...(dateMap.get(date) ?? {}),
+    }));
 
-    return { chartData: data, accountNames: names };
-  }, [trends, metric, trafficMode]);
+    return { chartData: data, accountNames: names, observedDateCount: observedDates.length };
+  }, [trends, metric, trafficMode, dateRange]);
 
   const [hiddenNames, setHiddenNames] = useState<Set<string>>(() => new Set());
+  const [brushWindow, setBrushWindow] = useState<{ startIndex: number; endIndex: number } | null>(null);
 
   useEffect(() => {
     setHiddenNames(new Set());
   }, [accountNames.join('|'), metric, trafficMode]);
+
+  useEffect(() => {
+    if (chartData.length <= 1) {
+      setBrushWindow(null);
+      return;
+    }
+
+    const observedIndexes = chartData
+      .map((point, index) => ({ point, index }))
+      .filter(({ point }) =>
+        accountNames.some((name) => typeof point[name] === 'number' && Number.isFinite(point[name] as number)),
+      )
+      .map(({ index }) => index);
+
+    if (observedIndexes.length === 0) {
+      setBrushWindow({ startIndex: Math.max(0, chartData.length - 8), endIndex: chartData.length - 1 });
+      return;
+    }
+
+    const lastObserved = observedIndexes[observedIndexes.length - 1];
+    if (lastObserved == null) {
+      setBrushWindow({ startIndex: Math.max(0, chartData.length - 8), endIndex: chartData.length - 1 });
+      return;
+    }
+
+    const desiredWindowSize = Math.min(chartData.length, Math.max(5, Math.min(8, observedIndexes.length + 2)));
+    const startIndex = Math.max(0, lastObserved - desiredWindowSize + 1);
+    const endIndex = Math.min(chartData.length - 1, startIndex + desiredWindowSize - 1);
+    setBrushWindow({ startIndex, endIndex });
+  }, [chartData, accountNames]);
 
   const visibleNames = useMemo(
     () => accountNames.filter((name) => !hiddenNames.has(name)),
@@ -164,31 +213,56 @@ export default function TrendLineChart({
   }
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-        <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={formatter} domain={yDomain} />
-        <Tooltip content={<CustomTooltip />} />
-        <Legend content={<CustomLegend />} />
-        {accountNames.map((name, index) => {
-          const isHidden = hiddenNames.has(name);
-          return (
-            <Line
-              key={name}
-              type="monotone"
-              dataKey={name}
-              name={name}
-              stroke={COLORS[index % COLORS.length]}
-              strokeOpacity={isHidden ? 0 : 1}
-              strokeWidth={2}
-              dot={isHidden ? false : { r: 3 }}
-              activeDot={isHidden ? false : { r: 5 }}
+    <div className="space-y-3">
+      {dateRange && observedDateCount > 0 && observedDateCount < 2 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          当前时间段仅有 {observedDateCount} 天真实采样，可用下方时间滑块缩放到采样附近查看。
+        </div>
+      )}
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" minTickGap={24} />
+          <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={formatter} domain={yDomain} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend content={<CustomLegend />} />
+          {accountNames.map((name, index) => {
+            const isHidden = hiddenNames.has(name);
+            return (
+              <Line
+                key={name}
+                type="monotone"
+                dataKey={name}
+                name={name}
+                stroke={COLORS[index % COLORS.length]}
+                strokeOpacity={isHidden ? 0 : 1}
+                strokeWidth={2}
+                dot={isHidden ? false : { r: 3 }}
+                activeDot={isHidden ? false : { r: 5 }}
               connectNulls={false}
+              />
+            );
+          })}
+          {chartData.length > 1 && (
+            <Brush
+              dataKey="date"
+              height={24}
+              stroke="#94a3b8"
+              travellerWidth={10}
+              startIndex={brushWindow?.startIndex}
+              endIndex={brushWindow?.endIndex}
+              onChange={(next) => {
+                if (
+                  typeof next?.startIndex === 'number'
+                  && typeof next?.endIndex === 'number'
+                ) {
+                  setBrushWindow({ startIndex: next.startIndex, endIndex: next.endIndex });
+                }
+              }}
             />
-          );
-        })}
-      </LineChart>
-    </ResponsiveContainer>
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

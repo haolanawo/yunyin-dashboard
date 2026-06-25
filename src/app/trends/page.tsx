@@ -68,6 +68,11 @@ function TrendsPageContent() {
   const hasTraffic = useMemo(() => trends.some((item) => item.traffic > 0), [trends]);
   const hasInteractionRate = useMemo(() => trends.some((item) => item.interactionRate > 0), [trends]);
   const hasObservation = useMemo(() => trends.some((item) => item.hasObservation), [trends]);
+  const hasDailyTraffic = useMemo(
+    () => trends.some((item) => item.hasObservation && typeof item.trafficDaily === 'number' && Number.isFinite(item.trafficDaily)),
+    [trends],
+  );
+  const effectiveTrafficMode = trafficMode === 'daily' && !hasDailyTraffic ? 'cumulative' : trafficMode;
 
   const changePeriod = (days: Period) => {
     setPeriod(days);
@@ -179,8 +184,13 @@ function TrendsPageContent() {
                 ))}
               </div>
             </div>
+            {trafficMode === 'daily' && !hasDailyTraffic && hasObservation && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                当前时间段缺少可比前序采样，单日增量暂时算不出来，先回退显示历史累计。
+              </div>
+            )}
             {hasTraffic ? (
-              <TrendLineChart trends={trends} metric="traffic" trafficMode={trafficMode} />
+              <TrendLineChart trends={trends} metric="traffic" trafficMode={effectiveTrafficMode} dateRange={dateRange} />
             ) : (
               <div className="flex h-64 items-center justify-center text-gray-400">
                 <p className="text-sm">{platform === 'bilibili' ? '暂无播放量快照' : '暂无互动量快照'}</p>
@@ -193,7 +203,7 @@ function TrendsPageContent() {
               {platform === 'bilibili' ? '互动率趋势' : '评论占比趋势'}
             </h3>
             {hasInteractionRate ? (
-              <TrendLineChart trends={trends} metric="interactionRate" />
+              <TrendLineChart trends={trends} metric="interactionRate" dateRange={dateRange} />
             ) : (
               <div className="flex h-64 items-center justify-center text-gray-400">
                 <p className="text-sm">暂无可计算互动比的数据</p>

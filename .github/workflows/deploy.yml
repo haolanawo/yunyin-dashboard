@@ -1,6 +1,7 @@
 # ============================================================
 # 自动部署到 Netlify — 推送 master 时触发
-# CI 内完成构建，Netlify 仅托管产物
+# 使用 @netlify/plugin-nextjs 支持 SSR + API Routes
+# Netlify 自动构建，插件生成 Netlify Functions
 # ============================================================
 name: Deploy to Netlify
 
@@ -19,19 +20,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
       - name: Deploy to Netlify
         run: |
           npm install -g netlify-cli
-          netlify deploy --dir=.next --prod --message "GitHub Actions"
+          netlify deploy --build --prod --message "GitHub Actions deploy"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: eae6e33e-ad3b-4cdf-b2c4-d8c7f0186a28
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}

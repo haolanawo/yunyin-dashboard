@@ -7,7 +7,7 @@
 - **样式**: Tailwind CSS 3.4
 - **数据库**: Supabase 云端 PostgreSQL（前端直连，无需 API 代理层）
 - **图表**: Recharts 2.x
-- **部署**: Vercel
+- **部署**: Netlify (SSR + API Routes via @netlify/plugin-nextjs)
 - **图标**: Lucide React
 - **爬虫**: Python 本地定时任务 → 直接写 Supabase（service_role key）
 
@@ -104,4 +104,11 @@ npm run lint       # ESLint
 ## 环境变量
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase 项目 URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase 匿名密钥（仅读取权限）
+- `SUPABASE_DATABASE_URL` — Supabase Postgres 直连字符串（API Routes SSR 端使用，不在浏览器暴露）
 - 爬虫另行配置 `SUPABASE_SERVICE_ROLE_KEY`（写入权限），不在前端暴露
+
+## 部署
+
+- **生产**: Netlify (`rainbow-zabaione-2bb7df.netlify.app`)
+- **部署方式**: GitHub Actions → `netlify deploy --build --prod`，使用 `@netlify/plugin-nextjs` 生成 Netlify Functions 处理 SSR + API Routes
+- **GitHub Secrets 需要**: `NETLIFY_AUTH_TOKEN`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_DATABASE_URL`
