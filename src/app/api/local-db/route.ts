@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getLocalDbUrlForDisplay, queryLocalDb } from '@/lib/local-db';
 import { AnalyticsCache } from '@/lib/server/analyticsCache';
-import { supabaseRest, supabaseRpc } from '@/lib/server/supabaseRest';
+import { supabaseRpc } from '@/lib/server/supabaseRest';
 
 type Filter =
   | { op: 'eq'; column: string; value: string | number | boolean | null }
@@ -95,71 +95,6 @@ function parseColumns(table: string, columns: string) {
   return selected.map(quoteIdentifier).join(', ');
 }
 
-function parseColumnsForRest(table: string, columns: string) {
-  const tableColumns = allowedColumns.get(table);
-  if (!tableColumns) {
-    throw new Error(`Unsupported table: ${table}`);
-  }
-
-  const selected = columns
-    .split(',')
-    .map((column) => column.trim())
-    .filter(Boolean);
-
-  if (selected.length === 0) {
-    throw new Error('At least one column is required.');
-  }
-
-  for (const column of selected) {
-    if (!tableColumns.has(column)) {
-      throw new Error(`Unsupported column ${column} for ${table}`);
-    }
-  }
-
-  return selected.join(',');
-}
-
-function applyRestFilters(params: URLSearchParams, table: string, filters: Filter[] | undefined) {
-  if (!filters?.length) return;
-
-  const tableColumns = allowedColumns.get(table);
-  if (!tableColumns) {
-    throw new Error(`Unsupported table: ${table}`);
-  }
-
-  for (const filter of filters) {
-    if (!tableColumns.has(filter.column)) {
-      throw new Error(`Unsupported filter column ${filter.column} for ${table}`);
-    }
-
-    if (filter.op === 'eq') {
-      params.append(filter.column, filter.value === null ? 'is.null' : `eq.${encodeRestValue(filter.value)}`);
-    } else if (filter.op === 'in') {
-      const values = filter.values.map(encodeRestValue).join(',');
-      params.append(filter.column, `in.(${values})`);
-    } else if (filter.op === 'ilike') {
-      params.append(filter.column, `ilike.${filter.value}`);
-    } else {
-      params.append(filter.column, `${filter.op}.${encodeRestValue(filter.value)}`);
-    }
-  }
-}
-
-function buildRestOrder(table: string, order: QueryPayload['order']) {
-  if (!order) return '';
-  const tableColumns = allowedColumns.get(table);
-  if (!tableColumns?.has(order.column)) {
-    throw new Error(`Unsupported order column ${order.column} for ${table}`);
-  }
-  const direction = order.ascending === false ? 'desc' : 'asc';
-  const nulls = order.nullsFirst ? '.nullsfirst' : direction === 'desc' ? '.nullslast' : '';
-  return `${order.column}.${direction}${nulls}`;
-}
-
-function encodeRestValue(value: string | number | boolean) {
-  return String(value).replace(/"/g, '\\"');
-}
-
 function buildWhere(table: string, filters: Filter[] | undefined, values: unknown[]) {
   if (!filters || filters.length === 0) {
     return '';
@@ -242,51 +177,62 @@ async function runTableQuery(payload: QueryPayload): Promise<LocalDbResult> {
     throw new Error(`Unsupported table: ${payload.table}`);
   }
 
-  const params = new URLSearchParams();
-  params.set('select', payload.columns.trim() === '*' ? '*' : parseColumnsForRest(payload.table, payload.columns));
-  applyRestFilters(params, payload.table, payload.filters);
-  if (payload.order) {
-    params.set('order', buildRestOrder(payload.table, payload.order));
-  }
+  const values: unknown[] = [];
+  const columns = parseColumns(payload.table, payload.columns);
+  const whereClause = buildWhere(payload.table, payload.filters, values);
+  const orderClause = buildOrder(payload.table, payload.order);
+  const table = quoteIdentifier(payload.table);
 
   if (payload.head) {
-    const headResult = await supabaseRest<null>(`${payload.table}?${params.toString()}`, {
-      method: 'HEAD',
-      headers: payload.count === 'exact' ? { Prefer: 'count=exact' } : undefined,
-    });
+    const headResult = await queryLocalDb<{ total: string }>(
+      `select count(*)::bigint as total from ${table}${whereClause}`,
+      values,
+    );
     return {
       data: null,
-      count: headResult.count,
+      count: Number(headResult.rows[0]?.total ?? 0),
       error: null,
     };
   }
 
-  const headers: Record<string, string> = {};
-  if (payload.count === 'exact') {
-    headers.Prefer = 'count=exact';
-  }
+  const countPromise = payload.count === 'exact'
+    ? queryLocalDb<{ total: string }>(
+        `select count(*)::bigint as total from ${table}${whereClause}`,
+        values,
+      )
+    : null;
+
+  const queryValues = [...values];
+  let limitClause = '';
   if (payload.range) {
-    headers.Range = `${payload.range.from}-${payload.range.to}`;
+    const rowCount = Math.max(0, payload.range.to - payload.range.from + 1);
+    queryValues.push(rowCount);
+    limitClause += ` limit $${queryValues.length}`;
+    queryValues.push(payload.range.from);
+    limitClause += ` offset $${queryValues.length}`;
   } else if (payload.limit) {
-    headers.Range = `0-${payload.limit - 1}`;
+    queryValues.push(payload.limit);
+    limitClause += ` limit $${queryValues.length}`;
   }
 
-  const result = await supabaseRest<Array<Record<string, unknown>>>(`${payload.table}?${params.toString()}`, {
-    headers,
-  });
-
-  const rows = result.data;
+  const result = await queryLocalDb<Record<string, unknown>>(
+    `select ${columns} from ${table}${whereClause}${orderClause}${limitClause}`,
+    queryValues,
+  );
+  const rows = result.rows;
+  const countResult = countPromise ? await countPromise : null;
+  const count = countResult ? Number(countResult.rows[0]?.total ?? rows.length) : null;
   if (payload.single) {
     if (rows.length !== 1) {
       return {
         data: null,
-        count: result.count ?? rows.length,
+        count: count ?? rows.length,
         error: { message: rows.length === 0 ? 'No rows found' : 'Multiple rows found' },
       };
     }
     return {
       data: rows[0],
-      count: result.count ?? 1,
+      count: count ?? 1,
       error: null,
     };
   }
@@ -294,14 +240,14 @@ async function runTableQuery(payload: QueryPayload): Promise<LocalDbResult> {
   if (payload.maybeSingle) {
     return {
       data: rows[0] ?? null,
-      count: result.count ?? rows.length,
+      count: count ?? rows.length,
       error: null,
     };
   }
 
   return {
     data: rows,
-    count: result.count,
+    count,
     error: null,
   };
 }
