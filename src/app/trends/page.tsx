@@ -68,11 +68,13 @@ function TrendsPageContent() {
   const hasTraffic = useMemo(() => trends.some((item) => item.traffic > 0), [trends]);
   const hasInteractionRate = useMemo(() => trends.some((item) => item.interactionRate > 0), [trends]);
   const hasObservation = useMemo(() => trends.some((item) => item.hasObservation), [trends]);
-  const hasDailyTraffic = useMemo(
-    () => trends.some((item) => item.hasObservation && typeof item.trafficDaily === 'number' && Number.isFinite(item.trafficDaily)),
+  // 只有一个观测日时，日增量算不出来（需要前一日做基准），自动回退到累计
+  const observedDates = useMemo(
+    () => [...new Set(trends.filter((t) => t.hasObservation).map((t) => t.date))].sort(),
     [trends],
   );
-  const effectiveTrafficMode = trafficMode === 'daily' && !hasDailyTraffic ? 'cumulative' : trafficMode;
+  const singleObservedDate = observedDates.length <= 1 && hasObservation;
+  const effectiveTrafficMode = trafficMode === 'daily' && singleObservedDate ? 'cumulative' : trafficMode;
 
   const changePeriod = (days: Period) => {
     setPeriod(days);
@@ -184,9 +186,9 @@ function TrendsPageContent() {
                 ))}
               </div>
             </div>
-            {trafficMode === 'daily' && !hasDailyTraffic && hasObservation && (
+            {trafficMode === 'daily' && singleObservedDate && hasObservation && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                当前时间段缺少可比前序采样，单日增量暂时算不出来，先回退显示历史累计。
+                当前仅有 1 天数据，日增量无法计算（需要前一日做基线），先回退显示历史累计。
               </div>
             )}
             {hasTraffic ? (

@@ -80,7 +80,13 @@ export default function TrendLineChart({
 
     const names = Array.from(accountSet);
     const observedDates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b));
-    const dates = dateRange ? enumerateDates(dateRange.start, dateRange.end) : observedDates;
+
+    // 只有 >= 4 个采样日时才补齐日期轴，避免 2 个数据点夹 5 个空白造成视觉混乱
+    const shouldEnumerate = dateRange && observedDates.length >= 4;
+    const dates = shouldEnumerate
+      ? enumerateDates(dateRange.start, dateRange.end)
+      : observedDates;
+
     const data: ChartDataPoint[] = dates.map((date) => ({
       date,
       ...(dateMap.get(date) ?? {}),
@@ -131,14 +137,15 @@ export default function TrendLineChart({
     [accountNames, hiddenNames],
   );
 
-  const yDomain = useMemo<[number | 'auto' | ((min: number) => number), number | 'auto' | ((max: number) => number)]>(() => {
-    const values = chartData.flatMap((point) =>
-      visibleNames
-        .map((name) => point[name])
-        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value)),
-    );
-    if (values.length === 0) return ['auto', 'auto'];
-
+  const yDomain = useMemo<[number, number]>(() => {
+    const values: number[] = [];
+    chartData.forEach((point) => {
+      visibleNames.forEach((name) => {
+        const v = point[name];
+        if (typeof v === 'number' && Number.isFinite(v)) values.push(v);
+      });
+    });
+    if (values.length === 0) return [0, 1];
     const min = Math.min(...values);
     const max = Math.max(...values);
     if (min === max) {
