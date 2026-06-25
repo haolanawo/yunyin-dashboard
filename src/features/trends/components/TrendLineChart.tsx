@@ -50,7 +50,9 @@ export default function TrendLineChart({
       let value: number | null = trend.hasObservation ? trend[metric] : null;
       if (metric === 'traffic' && trafficMode === 'daily') {
         const previous = previousTrafficByAccount.get(trend.account_id);
-        value = trend.hasObservation && previous != null ? Math.max(0, trend.traffic - previous) : null;
+        value = trend.hasObservation
+          ? trend.trafficDaily ?? (previous != null ? Math.max(0, trend.traffic - previous) : null)
+          : null;
         if (trend.hasObservation) previousTrafficByAccount.set(trend.account_id, trend.traffic);
       }
 

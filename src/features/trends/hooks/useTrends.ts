@@ -13,6 +13,7 @@ export interface AccountTrend {
   account_id: string;
   date: string;
   traffic: number;
+  trafficDaily: number | null;
   interactionRate: number;
   hasObservation: boolean;
 }

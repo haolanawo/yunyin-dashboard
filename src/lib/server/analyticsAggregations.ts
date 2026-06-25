@@ -90,6 +90,7 @@ export interface AccountTrendPoint {
   account_name: string;
   date: string;
   traffic: number;
+  trafficDaily: number | null;
   interactionRate: number;
   hasObservation: boolean;
 }
@@ -201,6 +202,116 @@ export async function getTrendSeries(
 ): Promise<AccountTrendPoint[]> {
   if (!accountIds.length) return [];
 
+  if (platform === 'bilibili') {
+    const result = await queryLocalDb<{
+      account_id: string;
+      account_name: string;
+      date: string;
+      traffic: string;
+      traffic_daily: string | null;
+      interaction_rate: string;
+      has_observation: boolean;
+    }>(
+      `
+      with date_quality as (
+        select
+          snapshot_date,
+          count(*) as row_count,
+          sum(coalesce(comments, 0)) as total_comments
+        from content_metric_snapshots
+        where platform = 'bilibili'
+          and snapshot_date between ($2::date - interval '30 days') and $3::date
+        group by snapshot_date
+      ),
+      snapshots as (
+        select
+          c.account_id,
+          coalesce(ba.account_name, c.account_id, 'unknown') as account_name,
+          s.content_id,
+          s.snapshot_date,
+          coalesce(s.views, 0)::bigint as views,
+          coalesce(s.likes, 0)::bigint as likes,
+          coalesce(s.favorites, 0)::bigint as favorites,
+          coalesce(s.coins, 0)::bigint as coins,
+          coalesce(s.shares, 0)::bigint as shares,
+          coalesce(s.comments, 0)::bigint as comments,
+          coalesce(s.danmaku, 0)::bigint as danmaku,
+          not (dq.row_count >= 20 and dq.total_comments = 0) as has_observation
+        from content_metric_snapshots s
+        join contents c on c.content_id = s.content_id
+        left join bilibili_accounts ba on ba.account_id = c.account_id
+        join date_quality dq on dq.snapshot_date = s.snapshot_date
+        where s.platform = 'bilibili'
+          and c.account_id = any($1::text[])
+          and s.snapshot_date between ($2::date - interval '30 days') and $3::date
+      ),
+      account_daily as (
+        select
+          account_id,
+          account_name,
+          snapshot_date,
+          sum(views)::bigint as traffic,
+          sum(likes + favorites + coins + shares + comments + danmaku)::numeric / nullif(sum(views), 0) as interaction_rate,
+          bool_and(has_observation) as has_observation
+        from snapshots
+        group by account_id, account_name, snapshot_date
+      ),
+      valid_content as (
+        select
+          account_id,
+          content_id,
+          snapshot_date,
+          views,
+          lag(views) over (partition by content_id order by snapshot_date) as previous_views
+        from snapshots
+        where has_observation
+      ),
+      content_delta as (
+        select
+          account_id,
+          snapshot_date,
+          case
+            when previous_views is null then null
+            else greatest(views - previous_views, 0)
+          end as traffic_delta
+        from valid_content
+      ),
+      daily_delta as (
+        select
+          account_id,
+          snapshot_date,
+          sum(traffic_delta)::bigint as traffic_daily
+        from content_delta
+        where traffic_delta is not null
+        group by account_id, snapshot_date
+      )
+      select
+        ad.account_id,
+        ad.account_name,
+        ad.snapshot_date::text as date,
+        ad.traffic::text as traffic,
+        dd.traffic_daily::text as traffic_daily,
+        coalesce(ad.interaction_rate, 0)::text as interaction_rate,
+        ad.has_observation
+      from account_daily ad
+      left join daily_delta dd on dd.account_id = ad.account_id and dd.snapshot_date = ad.snapshot_date
+      where ad.snapshot_date between $2::date and $3::date
+      order by ad.snapshot_date asc, ad.account_name asc
+      `,
+      [accountIds, dateRange.start, dateRange.end],
+    );
+
+    return result.rows.map((row) => ({
+      account_id: row.account_id,
+      account_name: row.account_name,
+      date: row.date,
+      traffic: Number(row.traffic),
+      trafficDaily: row.traffic_daily == null ? null : Number(row.traffic_daily),
+      interactionRate: Number(row.interaction_rate),
+      hasObservation: row.has_observation,
+    }));
+  }
+
   const rows = await supabaseRpc<Array<{
     account_id: string;
     account_name: string;
@@ -219,6 +330,7 @@ export async function getTrendSeries(
     account_name: row.account_name,
     date: row.date,
     traffic: Number(row.traffic),
+    trafficDaily: null,
     interactionRate: Number(row.interaction_rate),
     hasObservation: true,
   }));
